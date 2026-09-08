@@ -34,6 +34,10 @@ public class MarketDataClient {
         public double operatingCashFlow = Double.NaN;
         public double capex = Double.NaN;
         public double shares = Double.NaN;
+        public double marketCap = Double.NaN;
+        public double pe = Double.NaN;
+        public double freeCashFlow = Double.NaN;
+        public String source = "";
     }
 
     private static Map<String, Integer> secTickerMap;
@@ -100,13 +104,127 @@ public class MarketDataClient {
         secTickerMap = new HashMap<>();
         JSONObject root = new JSONObject(get(
                 "https://www.sec.gov/files/company_tickers.json",
-                "MarketRankerAndroid/1.0 github.com/Slaider00/market-ranker"));
+                "MarketRankerAndroid/0.4 contact@example.com"));
         java.util.Iterator<String> keys = root.keys();
         while (keys.hasNext()) {
             String key = keys.next();
             JSONObject row = root.getJSONObject(key);
             secTickerMap.put(row.getString("ticker").toUpperCase(), row.getInt("cik_str"));
         }
+    }
+
+    public Fundamentals fundamentals(String symbol) throws Exception {
+        Exception secError = null;
+        try {
+            Fundamentals sec = secFundamentals(symbol);
+            if (hasUsefulFundamentals(sec)) {
+                sec.source = "SEC EDGAR";
+                return sec;
+            }
+        } catch (Exception e) {
+            secError = e;
+        }
+
+        try {
+            Fundamentals yf = yahooFundamentals(symbol);
+            if (hasUsefulFundamentals(yf)) {
+                yf.source = "Yahoo Fundamentals";
+                return yf;
+            }
+        } catch (Exception yahooError) {
+            String a = secError == null ? "" : ("SEC: " + secError.getMessage() + " · ");
+            throw new Exception(a + "Yahoo: " + yahooError.getMessage());
+        }
+
+        if (secError != null) throw secError;
+        throw new Exception("Fondamentali non disponibili");
+    }
+
+    private boolean hasUsefulFundamentals(Fundamentals f) {
+        return Maths.ok(f.revenue) || Maths.ok(f.netIncome) || Maths.ok(f.equity)
+                || Maths.ok(f.pe) || Maths.ok(f.freeCashFlow);
+    }
+
+    public Fundamentals yahooFundamentals(String symbol) throws Exception {
+        String encoded = URLEncoder.encode(symbol, "UTF-8");
+        long now = System.currentTimeMillis() / 1000L;
+        long start = now - 6L * 365L * 24L * 60L * 60L;
+
+        String types =
+                "annualTotalRevenue,annualNetIncome,annualStockholdersEquity," +
+                "annualTotalDebt,annualOperatingCashFlow,annualCapitalExpenditure," +
+                "annualDilutedAverageShares,trailingMarketCap,trailingPeRatio,trailingFreeCashFlow";
+
+        String url = "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/" +
+                encoded + "?symbol=" + encoded +
+                "&type=" + types +
+                "&period1=" + start +
+                "&period2=" + (now + 86400L) +
+                "&lang=en-US&region=US";
+
+        JSONObject root = new JSONObject(get(url,
+                "Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 MarketRanker/0.4"));
+
+        Fundamentals f = new Fundamentals();
+
+        List<Double> revenue = yahooSeries(root, "annualTotalRevenue");
+        List<Double> income = yahooSeries(root, "annualNetIncome");
+        List<Double> equity = yahooSeries(root, "annualStockholdersEquity");
+        List<Double> debt = yahooSeries(root, "annualTotalDebt");
+        List<Double> ocf = yahooSeries(root, "annualOperatingCashFlow");
+        List<Double> capex = yahooSeries(root, "annualCapitalExpenditure");
+        List<Double> shares = yahooSeries(root, "annualDilutedAverageShares");
+        List<Double> marketCap = yahooSeries(root, "trailingMarketCap");
+        List<Double> pe = yahooSeries(root, "trailingPeRatio");
+        List<Double> freeCf = yahooSeries(root, "trailingFreeCashFlow");
+
+        f.revenue = last(revenue);
+        f.prevRevenue = previous(revenue);
+        f.netIncome = last(income);
+        f.prevNetIncome = previous(income);
+        f.equity = last(equity);
+        f.liabilities = last(debt);
+        f.operatingCashFlow = last(ocf);
+        f.capex = last(capex);
+        f.shares = last(shares);
+        f.marketCap = last(marketCap);
+        f.pe = last(pe);
+        f.freeCashFlow = last(freeCf);
+        f.source = "Yahoo Fundamentals";
+
+        return f;
+    }
+
+    private List<Double> yahooSeries(JSONObject root, String key) {
+        List<Double> out = new ArrayList<>();
+        JSONObject timeseries = root.optJSONObject("timeseries");
+        JSONArray result = timeseries == null ? null : timeseries.optJSONArray("result");
+        if (result == null) return out;
+
+        for (int i = 0; i < result.length(); i++) {
+            JSONObject item = result.optJSONObject(i);
+            if (item == null) continue;
+            JSONArray values = item.optJSONArray(key);
+            if (values == null) continue;
+
+            for (int j = 0; j < values.length(); j++) {
+                JSONObject point = values.optJSONObject(j);
+                if (point == null) continue;
+                JSONObject reported = point.optJSONObject("reportedValue");
+                if (reported == null) continue;
+                double raw = reported.optDouble("raw", Double.NaN);
+                if (Maths.ok(raw)) out.add(raw);
+            }
+        }
+        return out;
+    }
+
+    private double last(List<Double> values) {
+        return values == null || values.isEmpty() ? Double.NaN : values.get(values.size() - 1);
+    }
+
+    private double previous(List<Double> values) {
+        return values == null || values.size() < 2 ? Double.NaN : values.get(values.size() - 2);
     }
 
     public Fundamentals secFundamentals(String symbol) throws Exception {
@@ -117,7 +235,7 @@ public class MarketDataClient {
         String cikText = String.format("%010d", cik);
         JSONObject root = new JSONObject(get(
                 "https://data.sec.gov/api/xbrl/companyfacts/CIK" + cikText + ".json",
-                "MarketRankerAndroid/1.0 github.com/Slaider00/market-ranker"));
+                "MarketRankerAndroid/0.4 contact@example.com"));
 
         Fundamentals f = new Fundamentals();
         JSONObject facts = root.optJSONObject("facts");
