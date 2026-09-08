@@ -29,21 +29,19 @@ public class MainActivity extends Activity {
     private static final int SCREEN_DETAIL = 2;
     private static final int SCREEN_INFO = 3;
 
-    private final int BG = Color.rgb(10, 14, 20);
+    private final int BG = Color.rgb(9, 13, 19);
     private final int SURFACE = Color.rgb(18, 24, 33);
     private final int SURFACE_2 = Color.rgb(24, 31, 42);
     private final int BORDER = Color.rgb(42, 53, 68);
     private final int TEXT = Color.rgb(244, 247, 251);
     private final int MUTED = Color.rgb(151, 163, 181);
     private final int BLUE = Color.rgb(67, 139, 250);
-    private final int BLUE_DARK = Color.rgb(33, 86, 171);
     private final int GREEN = Color.rgb(34, 197, 94);
     private final int ORANGE = Color.rgb(245, 158, 11);
     private final int RED = Color.rgb(239, 68, 68);
+    private final int PURPLE = Color.rgb(167, 139, 250);
 
-    private LinearLayout appRoot;
     private LinearLayout content;
-    private LinearLayout bottomNav;
     private TextView topBack;
     private TextView topTitle;
     private TextView topSubtitle;
@@ -60,9 +58,8 @@ public class MainActivity extends Activity {
     private final ExecutorService executor = Executors.newFixedThreadPool(4);
 
     private int currentScreen = SCREEN_HOME;
-    private StockResult selectedResult = null;
-    private String lastUniverse =
-            "AAPL, MSFT, GOOGL, META, AMZN, NVDA, TTWO, ASML, SAP.DE, RHM.DE, BMPS.MI";
+    private boolean sortOpportunity = false;
+    private String lastUniverse = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -75,37 +72,32 @@ public class MainActivity extends Activity {
     }
 
     private void buildShell() {
-        appRoot = new LinearLayout(this);
-        appRoot.setOrientation(LinearLayout.VERTICAL);
-        appRoot.setBackgroundColor(BG);
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(BG);
 
-        appRoot.addView(buildTopBar());
+        root.addView(buildTopBar());
 
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
-        scroll.setClipToPadding(false);
-
         content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(16), dp(18), dp(16), dp(30));
+        content.setPadding(dp(16), dp(18), dp(16), dp(32));
         scroll.addView(content, new ScrollView.LayoutParams(
                 ScrollView.LayoutParams.MATCH_PARENT,
                 ScrollView.LayoutParams.WRAP_CONTENT));
-
-        appRoot.addView(scroll, new LinearLayout.LayoutParams(
+        root.addView(scroll, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
 
-        bottomNav = buildBottomNav();
-        appRoot.addView(bottomNav);
-
-        setContentView(appRoot);
+        root.addView(buildBottomNav());
+        setContentView(root);
     }
 
     private View buildTopBar() {
         LinearLayout bar = new LinearLayout(this);
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setGravity(Gravity.CENTER_VERTICAL);
-        bar.setPadding(dp(12), dp(10), dp(16), dp(10));
+        bar.setPadding(dp(12), dp(10), dp(14), dp(10));
         bar.setBackgroundColor(SURFACE);
 
         topBack = text("‹", 36, TEXT, false);
@@ -118,29 +110,24 @@ public class MainActivity extends Activity {
         LinearLayout titles = new LinearLayout(this);
         titles.setOrientation(LinearLayout.VERTICAL);
         titles.setPadding(dp(10), 0, 0, 0);
-
         topTitle = text("Market Ranker", 19, TEXT, true);
-        topSubtitle = text("Equity research · motore locale", 11, MUTED, false);
-        topSubtitle.setPadding(0, dp(1), 0, 0);
-
+        topSubtitle = text("Equity research · native Android", 11, MUTED, false);
         titles.addView(topTitle);
         titles.addView(topSubtitle);
         bar.addView(titles, new LinearLayout.LayoutParams(0,
                 LinearLayout.LayoutParams.WRAP_CONTENT, 1));
 
-        TextView nativeChip = text("NATIVE", 10, BLUE, true);
-        nativeChip.setGravity(Gravity.CENTER);
-        nativeChip.setBackground(rounded(Color.rgb(20, 46, 78), 999, Color.rgb(45, 91, 142), 1));
-        nativeChip.setPadding(dp(10), dp(6), dp(10), dp(6));
-        bar.addView(nativeChip);
-
+        TextView chip = text("6M ENGINE", 9, PURPLE, true);
+        chip.setGravity(Gravity.CENTER);
+        chip.setPadding(dp(9), dp(6), dp(9), dp(6));
+        chip.setBackground(rounded(Color.rgb(45, 32, 69), 999, Color.rgb(91, 67, 137), 1));
+        bar.addView(chip);
         return bar;
     }
 
-    private LinearLayout buildBottomNav() {
+    private View buildBottomNav() {
         LinearLayout nav = new LinearLayout(this);
         nav.setOrientation(LinearLayout.HORIZONTAL);
-        nav.setGravity(Gravity.CENTER);
         nav.setPadding(dp(10), dp(8), dp(10), dp(10));
         nav.setBackgroundColor(SURFACE);
 
@@ -148,25 +135,24 @@ public class MainActivity extends Activity {
         navRanking = navItem("≡\nRanking", v -> showRanking());
         navInfo = navItem("i\nInfo", v -> showInfo());
 
-        nav.addView(navHome, new LinearLayout.LayoutParams(0, dp(56), 1));
-        nav.addView(navRanking, new LinearLayout.LayoutParams(0, dp(56), 1));
-        nav.addView(navInfo, new LinearLayout.LayoutParams(0, dp(56), 1));
+        nav.addView(navHome, new LinearLayout.LayoutParams(0, dp(58), 1));
+        nav.addView(navRanking, new LinearLayout.LayoutParams(0, dp(58), 1));
+        nav.addView(navInfo, new LinearLayout.LayoutParams(0, dp(58), 1));
         return nav;
     }
 
     private TextView navItem(String label, View.OnClickListener listener) {
         TextView t = text(label, 12, MUTED, true);
         t.setGravity(Gravity.CENTER);
-        t.setLineSpacing(0, 0.9f);
         t.setOnClickListener(listener);
         return t;
     }
 
-    private void setScreen(int screen, String title, String subtitle, boolean showBack) {
+    private void setScreen(int screen, String title, String subtitle, boolean back) {
         currentScreen = screen;
         topTitle.setText(title);
         topSubtitle.setText(subtitle);
-        topBack.setVisibility(showBack ? View.VISIBLE : View.GONE);
+        topBack.setVisibility(back ? View.VISIBLE : View.GONE);
 
         styleNav(navHome, screen == SCREEN_HOME);
         styleNav(navRanking, screen == SCREEN_RANKING);
@@ -179,31 +165,27 @@ public class MainActivity extends Activity {
     }
 
     private void showHome() {
-        selectedResult = null;
-        setScreen(SCREEN_HOME, "Market Ranker", "Costruisci il tuo universo", false);
+        setScreen(SCREEN_HOME, "Market Ranker", "Screening + scenario engine 6M", false);
         content.removeAllViews();
 
         LinearLayout hero = card(SURFACE);
-        hero.addView(text("SCREENING MULTIFATTORIALE", 11, BLUE, true));
-
-        TextView heroTitle = text("Confronta i titoli con un unico score.", 24, TEXT, true);
-        heroTitle.setPadding(0, dp(6), 0, dp(8));
-        hero.addView(heroTitle);
-
-        TextView heroText = text(
-                "Il motore scarica i dati, calcola indicatori e fattori direttamente sul telefono. " +
-                "Tocca un titolo nel ranking per aprire l'analisi completa.",
-                14, MUTED, false);
-        heroText.setLineSpacing(dp(2), 1.0f);
-        hero.addView(heroText);
+        hero.addView(text("MARKET RANKER", 11, BLUE, true));
+        TextView title = text("Trova il titolo. Poi valuta l'opportunità.", 24, TEXT, true);
+        title.setPadding(0, dp(6), 0, dp(8));
+        hero.addView(title);
+        hero.addView(text(
+                "Il Factor Score ordina qualità, valore, crescita, momentum, trend e rischio. " +
+                "Il 6M Engine costruisce Bear, Base e Bull senza modificare il ranking originale.",
+                14, MUTED, false));
         content.addView(hero, cardParams());
 
-        TextView label = text("Universo da analizzare", 13, TEXT, true);
+        TextView label = text("Ticker da analizzare", 13, TEXT, true);
         label.setPadding(dp(2), dp(8), 0, dp(8));
         content.addView(label);
 
         tickerInput = new EditText(this);
         tickerInput.setText(lastUniverse);
+        tickerInput.setHint("Es. AAPL, META, TTWO oppure BMPS.MI");
         tickerInput.setTextColor(TEXT);
         tickerInput.setHintTextColor(MUTED);
         tickerInput.setTextSize(15);
@@ -214,7 +196,7 @@ public class MainActivity extends Activity {
         tickerInput.setPadding(dp(14), dp(13), dp(14), dp(13));
         content.addView(tickerInput, matchWrap());
 
-        analyzeButton = primaryButton("Aggiorna ranking", v -> analyze());
+        analyzeButton = primaryButton("Analizza", v -> analyze());
         LinearLayout.LayoutParams bp = matchWrap();
         bp.topMargin = dp(12);
         content.addView(analyzeButton, bp);
@@ -227,28 +209,23 @@ public class MainActivity extends Activity {
         content.addView(progress, pp);
 
         status = text(
-                results.isEmpty()
-                        ? "Pronto. I ticker possono essere separati da virgole o andare a capo."
-                        : results.size() + " titoli già disponibili nella sessione.",
+                results.isEmpty() ? "Nessuna lista precompilata: scegli tu l'universo." :
+                        results.size() + " titoli disponibili nella sessione.",
                 12, MUTED, false);
         status.setPadding(dp(2), dp(10), 0, 0);
         content.addView(status);
 
         if (!results.isEmpty()) {
-            LinearLayout previous = card(SURFACE_2);
-            TextView p1 = text("Ultimo ranking", 13, MUTED, true);
-            previous.addView(p1);
-            StockResult leader = firstValid();
+            LinearLayout recent = card(SURFACE_2);
+            StockResult leader = leader();
+            recent.addView(text("ULTIMA ANALISI", 11, MUTED, true));
             if (leader != null) {
-                TextView p2 = text(
-                        "Leader: " + leader.symbol + " · " + fmtScore(leader.composite),
-                        18, TEXT, true);
-                p2.setPadding(0, dp(5), 0, dp(5));
-                previous.addView(p2);
+                recent.addView(metricLine("Leader Factor", leader.symbol + " · " + fmtScore(leader.composite)));
+                recent.addView(metricLine("Opportunity", fmtScore(leader.opportunity)));
+                recent.addView(metricLine("Atteso 6M", fmtPct(leader.expectedReturn6m)));
             }
-            TextView open = secondaryButton("Apri classifica", v -> showRanking());
-            previous.addView(open, buttonParams());
-            content.addView(previous, cardParams());
+            recent.addView(secondaryButton("Apri ranking", v -> showRanking()), buttonParams());
+            content.addView(recent, cardParams());
         }
     }
 
@@ -261,7 +238,6 @@ public class MainActivity extends Activity {
             String s = p.trim().toUpperCase(Locale.ROOT);
             if (!s.isEmpty() && !symbols.contains(s)) symbols.add(s);
         }
-
         if (symbols.isEmpty()) {
             Toast.makeText(this, "Inserisci almeno un ticker.", Toast.LENGTH_SHORT).show();
             return;
@@ -269,7 +245,7 @@ public class MainActivity extends Activity {
 
         results.clear();
         analyzeButton.setEnabled(false);
-        analyzeButton.setAlpha(0.55f);
+        analyzeButton.setAlpha(.55f);
         progress.setVisibility(View.VISIBLE);
         progress.setProgress(0);
         status.setText("Avvio analisi…");
@@ -287,11 +263,9 @@ public class MainActivity extends Activity {
                     r.symbol = symbol;
                     r.error = e.getMessage() == null ? "Errore dati" : e.getMessage();
                 }
-
                 synchronized (results) {
                     results.add(r);
                 }
-
                 synchronized (done) {
                     done[0]++;
                     int completed = done[0];
@@ -303,7 +277,7 @@ public class MainActivity extends Activity {
                             analyzeButton.setEnabled(true);
                             analyzeButton.setAlpha(1f);
                             progress.setVisibility(View.GONE);
-                            sortResults();
+                            sortFactor();
                             showRanking();
                         }
                     });
@@ -312,60 +286,65 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void sortResults() {
-        Collections.sort(results, (a, b) -> {
-            boolean ao = Maths.ok(a.composite);
-            boolean bo = Maths.ok(b.composite);
-            if (ao && bo) return Double.compare(b.composite, a.composite);
-            if (ao) return -1;
-            if (bo) return 1;
-            return a.symbol.compareTo(b.symbol);
-        });
+    private void sortFactor() {
+        Collections.sort(results, (a, b) -> compareScore(b.composite, a.composite));
+    }
+
+    private void sortOpportunity() {
+        Collections.sort(results, (a, b) -> compareScore(b.opportunity, a.opportunity));
+    }
+
+    private int compareScore(double a, double b) {
+        boolean ao = Maths.ok(a), bo = Maths.ok(b);
+        if (ao && bo) return Double.compare(a, b);
+        if (ao) return -1;
+        if (bo) return 1;
+        return 0;
     }
 
     private void showRanking() {
-        selectedResult = null;
-        setScreen(SCREEN_RANKING, "Ranking", "Dal punteggio più alto al più basso", false);
+        setScreen(SCREEN_RANKING, "Ranking", sortOpportunity ? "Opportunity Score" : "Factor Score", false);
         content.removeAllViews();
 
         if (results.isEmpty()) {
-            emptyState(
-                    "Nessun ranking disponibile",
-                    "Avvia prima un'analisi dalla schermata Analizza.",
-                    "Vai ad Analizza",
-                    v -> showHome());
+            emptyState("Nessun ranking", "Inserisci alcuni ticker dalla schermata Analizza.", "Vai ad Analizza", v -> showHome());
             return;
         }
 
-        int valid = 0;
-        for (StockResult r : results) if (Maths.ok(r.composite)) valid++;
+        LinearLayout sorter = new LinearLayout(this);
+        sorter.setOrientation(LinearLayout.HORIZONTAL);
+        TextView factor = sortButton("Factor", !sortOpportunity, v -> {
+            sortOpportunity = false;
+            sortFactor();
+            showRanking();
+        });
+        TextView opp = sortButton("Opportunity", sortOpportunity, v -> {
+            sortOpportunity = true;
+            sortOpportunity();
+            showRanking();
+        });
+        sorter.addView(factor, new LinearLayout.LayoutParams(0, dp(42), 1));
+        LinearLayout.LayoutParams op = new LinearLayout.LayoutParams(0, dp(42), 1);
+        op.leftMargin = dp(8);
+        sorter.addView(opp, op);
+        content.addView(sorter, cardParams());
 
-        LinearLayout summary = card(SURFACE);
-        summary.addView(text("PANORAMICA", 11, BLUE, true));
-
-        LinearLayout stats = new LinearLayout(this);
-        stats.setOrientation(LinearLayout.HORIZONTAL);
-        stats.setPadding(0, dp(10), 0, 0);
-        StockResult leader = firstValid();
-
-        stats.addView(statBlock("Titoli", String.valueOf(valid)),
-                new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        stats.addView(statBlock("Leader", leader == null ? "N/D" : leader.symbol),
-                new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        stats.addView(statBlock("Score", leader == null ? "N/D" : fmtScore(leader.composite)),
-                new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        summary.addView(stats);
-        content.addView(summary, cardParams());
-
-        TextView helper = text(
-                "Tocca una scheda per aprire l'analisi del titolo.",
-                12, MUTED, false);
-        helper.setPadding(dp(2), dp(2), 0, dp(10));
-        content.addView(helper);
+        StockResult lead = firstValid();
+        if (lead != null) {
+            LinearLayout summary = card(SURFACE);
+            summary.addView(text("LEADER", 11, BLUE, true));
+            summary.addView(text(lead.symbol + " · " + safeName(lead), 20, TEXT, true));
+            summary.addView(metricLine("Factor", fmtScore(lead.composite)));
+            summary.addView(metricLine("Opportunity", fmtScore(lead.opportunity)));
+            summary.addView(metricLine("Atteso 6M", fmtPct(lead.expectedReturn6m)));
+            summary.addView(metricLine("Confidence", fmtScore(lead.confidence)));
+            content.addView(summary, cardParams());
+        }
 
         int rank = 1;
         for (StockResult r : results) {
-            if (!Maths.ok(r.composite)) continue;
+            double primary = sortOpportunity ? r.opportunity : r.composite;
+            if (!Maths.ok(primary)) continue;
             content.addView(rankingCard(r, rank), cardParams());
             rank++;
         }
@@ -373,15 +352,13 @@ public class MainActivity extends Activity {
         int errors = 0;
         for (StockResult r : results) if (!Maths.ok(r.composite)) errors++;
         if (errors > 0) {
-            LinearLayout errorCard = card(Color.rgb(42, 25, 27));
-            errorCard.addView(text(errors + " ticker non elaborati", 14, Color.rgb(255, 178, 182), true));
+            LinearLayout e = card(Color.rgb(45, 24, 28));
+            e.addView(text(errors + " ticker non elaborati", 14, Color.rgb(255, 183, 188), true));
             for (StockResult r : results) {
                 if (Maths.ok(r.composite)) continue;
-                errorCard.addView(text(
-                        r.symbol + " · " + (r.error == null || r.error.isEmpty() ? "dati non disponibili" : r.error),
-                        12, MUTED, false));
+                e.addView(text(r.symbol + " · " + (r.error == null ? "errore" : r.error), 12, MUTED, false));
             }
-            content.addView(errorCard, cardParams());
+            content.addView(e, cardParams());
         }
     }
 
@@ -394,340 +371,312 @@ public class MainActivity extends Activity {
         top.setOrientation(LinearLayout.HORIZONTAL);
         top.setGravity(Gravity.CENTER_VERTICAL);
 
-        TextView rankBadge = text("#" + rank, 12, MUTED, true);
-        rankBadge.setGravity(Gravity.CENTER);
-        rankBadge.setBackground(rounded(SURFACE_2, 999, BORDER, 1));
-        rankBadge.setPadding(dp(9), dp(5), dp(9), dp(5));
-        top.addView(rankBadge);
+        TextView badge = text("#" + rank, 12, MUTED, true);
+        badge.setGravity(Gravity.CENTER);
+        badge.setPadding(dp(9), dp(5), dp(9), dp(5));
+        badge.setBackground(rounded(SURFACE_2, 999, BORDER, 1));
+        top.addView(badge);
 
-        LinearLayout identity = new LinearLayout(this);
-        identity.setOrientation(LinearLayout.VERTICAL);
-        identity.setPadding(dp(10), 0, 0, 0);
-        identity.addView(text(r.symbol, 18, TEXT, true));
-        identity.addView(text(
-                r.name == null || r.name.isEmpty() ? r.symbol : r.name,
-                12, MUTED, false));
-        top.addView(identity, new LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        LinearLayout id = new LinearLayout(this);
+        id.setOrientation(LinearLayout.VERTICAL);
+        id.setPadding(dp(10), 0, 0, 0);
+        id.addView(text(r.symbol, 18, TEXT, true));
+        id.addView(text(safeName(r), 12, MUTED, false));
+        top.addView(id, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
 
-        TextView score = text(fmtScore(r.composite), 17, scoreColor(r.composite), true);
-        score.setGravity(Gravity.CENTER);
-        score.setBackground(scorePill(r.composite));
+        double primary = sortOpportunity ? r.opportunity : r.composite;
+        TextView score = text(fmtScore(primary), 16, scoreColor(primary), true);
         score.setPadding(dp(10), dp(7), dp(10), dp(7));
+        score.setBackground(scorePill(primary));
         top.addView(score);
-
         c.addView(top);
 
-        LinearLayout meta = new LinearLayout(this);
-        meta.setOrientation(LinearLayout.HORIZONTAL);
-        meta.setPadding(0, dp(12), 0, dp(8));
-        meta.addView(text(fmtPrice(r), 13, TEXT, true),
+        LinearLayout metrics = new LinearLayout(this);
+        metrics.setOrientation(LinearLayout.HORIZONTAL);
+        metrics.setPadding(0, dp(12), 0, 0);
+        metrics.addView(statBlock("Factor", fmtScore(r.composite)),
                 new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        meta.addView(text(scoreBand(r.composite), 12, scoreColor(r.composite), true));
-        c.addView(meta);
-
-        c.addView(miniFactorLine("Quality", r.quality, "Momentum", r.momentum));
-        c.addView(miniFactorLine("Value", r.valuation, "Risk", r.risk));
+        metrics.addView(statBlock("Opp.", fmtScore(r.opportunity)),
+                new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        metrics.addView(statBlock("6M", fmtPct(r.expectedReturn6m)),
+                new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        c.addView(metrics);
 
         TextView comment = text(r.comment, 12, MUTED, false);
-        comment.setLineSpacing(dp(2), 1.0f);
         comment.setPadding(0, dp(10), 0, 0);
         c.addView(comment);
-
-        TextView open = text("Apri dettaglio  ›", 12, BLUE, true);
-        open.setGravity(Gravity.END);
-        open.setPadding(0, dp(10), 0, 0);
-        c.addView(open);
         return c;
-    }
-
-    private View miniFactorLine(String l1, double v1, String l2, double v2) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setPadding(0, dp(3), 0, dp(3));
-
-        row.addView(miniMetric(l1, v1),
-                new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        row.addView(miniMetric(l2, v2),
-                new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        return row;
-    }
-
-    private View miniMetric(String label, double value) {
-        LinearLayout box = new LinearLayout(this);
-        box.setOrientation(LinearLayout.HORIZONTAL);
-        box.setGravity(Gravity.CENTER_VERTICAL);
-        TextView l = text(label, 11, MUTED, false);
-        TextView v = text(Maths.ok(value) ? String.format(Locale.ITALY, "%.0f", value) : "N/D",
-                11, Maths.ok(value) ? scoreColor(value) : MUTED, true);
-        v.setPadding(dp(6), 0, 0, 0);
-        box.addView(l);
-        box.addView(v);
-        return box;
     }
 
     private void showDetail(StockResult r) {
-        selectedResult = r;
-        setScreen(SCREEN_DETAIL, r.symbol, r.name == null ? "Dettaglio titolo" : r.name, true);
+        setScreen(SCREEN_DETAIL, r.symbol, "Analisi completa", true);
         content.removeAllViews();
 
         LinearLayout hero = card(SURFACE);
-        LinearLayout priceLine = new LinearLayout(this);
-        priceLine.setOrientation(LinearLayout.HORIZONTAL);
-        priceLine.setGravity(Gravity.CENTER_VERTICAL);
+        hero.addView(text(safeName(r), 13, MUTED, false));
+        TextView px = text(fmtPrice(r), 27, TEXT, true);
+        px.setPadding(0, dp(5), 0, dp(10));
+        hero.addView(px);
 
-        LinearLayout priceBox = new LinearLayout(this);
-        priceBox.setOrientation(LinearLayout.VERTICAL);
-        priceBox.addView(text("Prezzo", 11, MUTED, true));
-        priceBox.addView(text(fmtPrice(r), 24, TEXT, true));
-        priceLine.addView(priceBox, new LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-
-        LinearLayout scoreBox = new LinearLayout(this);
-        scoreBox.setOrientation(LinearLayout.VERTICAL);
-        scoreBox.setGravity(Gravity.END);
-        TextView scoreLabel = text("Composite", 11, MUTED, true);
-        scoreLabel.setGravity(Gravity.END);
-        TextView score = text(fmtScore(r.composite), 26, scoreColor(r.composite), true);
-        score.setGravity(Gravity.END);
-        scoreBox.addView(scoreLabel);
-        scoreBox.addView(score);
-        priceLine.addView(scoreBox);
-
-        hero.addView(priceLine);
-
-        TextView band = text(scoreBand(r.composite), 12, scoreColor(r.composite), true);
-        band.setPadding(0, dp(10), 0, dp(4));
-        hero.addView(band);
+        LinearLayout scores = new LinearLayout(this);
+        scores.setOrientation(LinearLayout.HORIZONTAL);
+        scores.addView(statBlock("Factor", fmtScore(r.composite)),
+                new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        scores.addView(statBlock("Opportunity", fmtScore(r.opportunity)),
+                new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        scores.addView(statBlock("Confidence", fmtScore(r.confidence)),
+                new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        hero.addView(scores);
 
         TextView comment = text(r.comment, 13, TEXT, false);
-        comment.setLineSpacing(dp(2), 1.0f);
+        comment.setPadding(0, dp(12), 0, 0);
         hero.addView(comment);
         content.addView(hero, cardParams());
 
-        content.addView(sectionTitle("Profilo fattoriale", "Come si compone lo score"));
-
-        LinearLayout factors = card(SURFACE);
-        factors.addView(factorBar("Quality", r.quality));
-        factors.addView(factorBar("Value", r.valuation));
-        factors.addView(factorBar("Momentum", r.momentum));
-        factors.addView(factorBar("Growth", r.growth));
-        factors.addView(factorBar("Trend", r.trend));
-        factors.addView(factorBar("Risk", r.risk));
-        content.addView(factors, cardParams());
-
-        content.addView(sectionTitle("Fondamentali", "Valutazione, redditività e crescita"));
-        LinearLayout fundamentals = card(SURFACE);
-        fundamentals.addView(metricLine("P/E", fmtNum(r.pe, "x")));
-        fundamentals.addView(divider());
-        fundamentals.addView(metricLine("FCF Yield", fmtPct(r.fcfYield)));
-        fundamentals.addView(divider());
-        fundamentals.addView(metricLine("ROE", fmtPct(r.roe)));
-        fundamentals.addView(divider());
-        fundamentals.addView(metricLine("Margine netto", fmtPct(r.profitMargin)));
-        fundamentals.addView(divider());
-        fundamentals.addView(metricLine("Leverage / Equity", fmtNum(r.debtToEquity, "")));
-        fundamentals.addView(divider());
-        fundamentals.addView(metricLine("Crescita ricavi", fmtPct(r.revenueGrowth)));
-        fundamentals.addView(divider());
-        fundamentals.addView(metricLine("Crescita utili", fmtPct(r.earningsGrowth)));
-        content.addView(fundamentals, cardParams());
-
-        content.addView(sectionTitle("Momentum e rischio", "Forza del prezzo e variabilità"));
-        LinearLayout technical = card(SURFACE);
-        technical.addView(metricLine("Momentum 3M", fmtPct(r.momentum3m)));
-        technical.addView(divider());
-        technical.addView(metricLine("Momentum 6M", fmtPct(r.momentum6m)));
-        technical.addView(divider());
-        technical.addView(metricLine("Momentum 12M", fmtPct(r.momentum12m)));
-        technical.addView(divider());
-        technical.addView(metricLine("Volatilità annua", fmtPct(r.volatilityAnnual)));
-        technical.addView(divider());
-        technical.addView(metricLine("Max drawdown", fmtPct(r.maxDrawdown)));
-        technical.addView(divider());
-        technical.addView(metricLine("RSI 14", fmtNum(r.rsi14, "")));
-        technical.addView(divider());
-        technical.addView(metricLine("ATR 14", fmtPct(r.atr14Pct)));
-        content.addView(technical, cardParams());
-
-        TextView backButton = secondaryButton("‹ Torna al ranking", v -> showRanking());
-        LinearLayout.LayoutParams bp = matchWrap();
-        bp.topMargin = dp(8);
-        content.addView(backButton, bp);
-    }
-
-    private View factorBar(String label, double value) {
-        LinearLayout wrap = new LinearLayout(this);
-        wrap.setOrientation(LinearLayout.VERTICAL);
-        wrap.setPadding(0, dp(7), 0, dp(7));
-
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.addView(text(label, 13, TEXT, true),
+        content.addView(section("Scenario 6 mesi"));
+        LinearLayout scenarios = new LinearLayout(this);
+        scenarios.setOrientation(LinearLayout.HORIZONTAL);
+        scenarios.addView(scenarioCard("BEAR", r.bearTarget, r.bearProbability, RED),
                 new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        row.addView(text(
-                Maths.ok(value) ? String.format(Locale.ITALY, "%.0f/100", value) : "N/D",
-                13, Maths.ok(value) ? scoreColor(value) : MUTED, true));
-        wrap.addView(row);
+        LinearLayout.LayoutParams b = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
+        b.leftMargin = dp(7); b.rightMargin = dp(7);
+        scenarios.addView(scenarioCard("BASE", r.baseTarget, r.baseProbability, BLUE), b);
+        scenarios.addView(scenarioCard("BULL", r.bullTarget, r.bullProbability, GREEN),
+                new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        content.addView(scenarios, cardParams());
 
-        ProgressBar bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
-        bar.setMax(100);
-        bar.setProgress(Maths.ok(value) ? (int) Math.round(value) : 0);
-        bar.setProgressTintList(android.content.res.ColorStateList.valueOf(
-                Maths.ok(value) ? scoreColor(value) : BORDER));
-        bar.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(BORDER));
-        LinearLayout.LayoutParams p = matchWrap();
-        p.topMargin = dp(6);
-        wrap.addView(bar, p);
-        return wrap;
+        LinearLayout expected = card(SURFACE_2);
+        expected.addView(text("EXPECTED PRICE 6M", 11, PURPLE, true));
+        expected.addView(metricLine("Prezzo atteso", fmtMoney(r.expectedPrice6m, r.currency)));
+        expected.addView(metricLine("Rendimento atteso", fmtPct(r.expectedReturn6m)));
+        expected.addView(metricLine("Bear downside", fmtPct(r.downsideBear)));
+        expected.addView(metricLine("Bull upside", fmtPct(r.upsideBull)));
+        expected.addView(metricLine("Risk / Reward", Maths.ok(r.riskReward) ? String.format(Locale.ITALY, "%.2f", r.riskReward) : "N/D"));
+        expected.addView(metricLine("Metodo", r.forecastMethod == null ? "N/D" : r.forecastMethod));
+        content.addView(expected, cardParams());
+
+        content.addView(section("Factor profile"));
+        content.addView(factorRow("Quality", r.quality, "redditività, margini, leva e cassa"));
+        content.addView(factorRow("Value", r.valuation, "P/E e FCF Yield"));
+        content.addView(factorRow("Momentum", r.momentum, "forza a 3, 6 e 12 mesi"));
+        content.addView(factorRow("Growth", r.growth, "crescita ricavi e utili"));
+        content.addView(factorRow("Trend", r.trend, "medie mobili e MACD"));
+        content.addView(factorRow("Risk", r.risk, "volatilità, drawdown e ATR"));
+
+        content.addView(section("Fondamentali"));
+        if (!r.fundamentalsAvailable) {
+            LinearLayout warn = card(Color.rgb(52, 42, 18));
+            warn.addView(text("Fondamentali incompleti", 14, ORANGE, true));
+            warn.addView(text(
+                    "Per questo ticker il motore non ha ottenuto un set fondamentale completo SEC. " +
+                    "Il forecast 6M è quindi prevalentemente statistico-tecnico.",
+                    12, MUTED, false));
+            content.addView(warn, cardParams());
+        }
+        content.addView(metricLine("P/E", fmtNum(r.pe, "x")));
+        content.addView(metricLine("FCF Yield", fmtPct(r.fcfYield)));
+        content.addView(metricLine("ROE", fmtPct(r.roe)));
+        content.addView(metricLine("Margine netto", fmtPct(r.profitMargin)));
+        content.addView(metricLine("Debt / Equity", fmtNum(r.debtToEquity, "")));
+        content.addView(metricLine("Crescita ricavi", fmtPct(r.revenueGrowth)));
+        content.addView(metricLine("Crescita utili", fmtPct(r.earningsGrowth)));
+
+        content.addView(section("Tecnica e rischio"));
+        content.addView(metricLine("Momentum 3M", fmtPct(r.momentum3m)));
+        content.addView(metricLine("Momentum 6M", fmtPct(r.momentum6m)));
+        content.addView(metricLine("Momentum 12M", fmtPct(r.momentum12m)));
+        content.addView(metricLine("RSI 14", fmtNum(r.rsi14, "")));
+        content.addView(metricLine("Volatilità annua", fmtPct(r.volatilityAnnual)));
+        content.addView(metricLine("Max drawdown", fmtPct(r.maxDrawdown)));
+        content.addView(metricLine("ATR 14", fmtPct(r.atr14Pct)));
+
+        content.addView(section("Motori del forecast"));
+        content.addView(metricLine("Target statistico", fmtMoney(r.statisticalTarget, r.currency)));
+        content.addView(metricLine("Target fondamentale", fmtMoney(r.fundamentalTarget, r.currency)));
+        content.addView(text(
+                "Il target a 6 mesi è una stima modellistica, non una previsione certa né una raccomandazione. " +
+                "Il Confidence Score misura copertura dati, accordo tra modelli e stabilità del titolo.",
+                11, MUTED, false));
     }
 
-    private void showInfo() {
-        selectedResult = null;
-        setScreen(SCREEN_INFO, "Info", "Metodo, dati e limiti", false);
-        content.removeAllViews();
-
-        LinearLayout intro = card(SURFACE);
-        intro.addView(text("MARKET RANKER", 11, BLUE, true));
-        TextView title = text("Cosa fa davvero l'app", 22, TEXT, true);
-        title.setPadding(0, dp(6), 0, dp(8));
-        intro.addView(title);
-        intro.addView(text(
-                "L'app è nativa Android: non apre Streamlit e non usa una WebView. " +
-                "Recupera dati via HTTPS e calcola il ranking sul dispositivo.",
-                14, MUTED, false));
-        content.addView(intro, cardParams());
-
-        content.addView(infoCard(
-                "Fattori",
-                "Quality 25% · Value 20% · Momentum 20% · Growth 15% · Trend 10% · Risk 10%. " +
-                "Se un fattore manca, il composite ripesa automaticamente quelli disponibili."));
-
-        content.addView(infoCard(
-                "Fonti",
-                "Prezzi e storico: Yahoo Finance chart endpoint. Fondamentali USA: SEC EDGAR. " +
-                "Per i titoli non coperti da SEC, oggi il ranking si basa soprattutto sui fattori tecnici disponibili."));
-
-        content.addView(infoCard(
-                "Interpretazione",
-                "70–100 indica un profilo forte secondo le soglie interne del modello; 50–69 intermedio; sotto 50 debole. " +
-                "Non equivale a un segnale automatico di acquisto o vendita."));
-
-        content.addView(infoCard(
-                "Stato del modello",
-                "Il motore è ancora un MVP di ricerca. Prima di usarlo operativamente, i pesi e le soglie devono essere validati con backtest."));
-    }
-
-    private View infoCard(String title, String body) {
+    private View scenarioCard(String label, double target, double probability, int color) {
         LinearLayout c = card(SURFACE);
-        c.addView(text(title, 16, TEXT, true));
-        TextView b = text(body, 13, MUTED, false);
-        b.setLineSpacing(dp(2), 1.0f);
-        b.setPadding(0, dp(6), 0, 0);
-        c.addView(b);
+        c.setPadding(dp(10), dp(10), dp(10), dp(10));
+        TextView l = text(label, 10, color, true);
+        l.setGravity(Gravity.CENTER);
+        c.addView(l);
+        TextView p = text(Maths.ok(target) ? String.format(Locale.ITALY, "%.2f", target) : "N/D", 16, TEXT, true);
+        p.setGravity(Gravity.CENTER);
+        p.setPadding(0, dp(5), 0, dp(4));
+        c.addView(p);
+        TextView prob = text(Maths.ok(probability) ? String.format(Locale.ITALY, "%.0f%%", probability * 100) : "N/D", 11, MUTED, false);
+        prob.setGravity(Gravity.CENTER);
+        c.addView(prob);
         return c;
     }
 
-    private View sectionTitle(String title, String subtitle) {
-        LinearLayout box = new LinearLayout(this);
-        box.setOrientation(LinearLayout.VERTICAL);
-        box.setPadding(dp(2), dp(12), 0, dp(8));
-        box.addView(text(title, 18, TEXT, true));
-        box.addView(text(subtitle, 11, MUTED, false));
-        return box;
-    }
-
-    private LinearLayout statBlock(String label, String value) {
-        LinearLayout box = new LinearLayout(this);
-        box.setOrientation(LinearLayout.VERTICAL);
-        box.addView(text(label, 10, MUTED, true));
-        TextView v = text(value, 18, TEXT, true);
-        v.setPadding(0, dp(3), 0, 0);
-        box.addView(v);
-        return box;
-    }
-
-    private LinearLayout metricLine(String label, String value) {
+    private View factorRow(String label, double score, String description) {
+        LinearLayout c = card(SURFACE);
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(0, dp(8), 0, dp(8));
-
-        TextView l = text(label, 13, MUTED, false);
-        TextView v = text(value, 14, TEXT, true);
-        v.setGravity(Gravity.END);
-
-        row.addView(l, new LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        row.addView(v);
-        return row;
+        LinearLayout left = new LinearLayout(this);
+        left.setOrientation(LinearLayout.VERTICAL);
+        left.addView(text(label, 14, TEXT, true));
+        left.addView(text(description, 11, MUTED, false));
+        row.addView(left, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        TextView s = text(fmtScore(score), 14, scoreColor(score), true);
+        s.setPadding(dp(9), dp(6), dp(9), dp(6));
+        s.setBackground(scorePill(score));
+        row.addView(s);
+        c.addView(row);
+        return c;
     }
 
-    private View divider() {
-        View d = new View(this);
-        d.setBackgroundColor(BORDER);
-        d.setAlpha(0.55f);
-        d.setLayoutParams(new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(1)));
-        return d;
+    private void showInfo() {
+        setScreen(SCREEN_INFO, "Metodologia", "Come leggere il modello", false);
+        content.removeAllViews();
+
+        LinearLayout a = card(SURFACE);
+        a.addView(text("DUE SCORE, DUE DOMANDE", 11, BLUE, true));
+        a.addView(text("Factor Score", 18, TEXT, true));
+        a.addView(text("Quali titoli hanno il profilo multifattoriale più interessante?", 13, MUTED, false));
+        TextView o = text("Opportunity Score", 18, TEXT, true);
+        o.setPadding(0, dp(14), 0, 0);
+        a.addView(o);
+        a.addView(text("Quanto è interessante oggi il rapporto fra upside, downside, confidence e qualità del profilo?", 13, MUTED, false));
+        content.addView(a, cardParams());
+
+        LinearLayout b = card(SURFACE);
+        b.addView(text("SCENARIO ENGINE 6M", 11, PURPLE, true));
+        b.addView(text(
+                "Il modello combina target statistico-tecnico e, quando disponibili, fondamentali SEC. " +
+                "Da qui costruisce Bear, Base, Bull e probabilità dinamiche.",
+                13, TEXT, false));
+        b.addView(text(
+                "\nLa Confidence aumenta con copertura dati, accordo fra motori e minore instabilità. " +
+                "Per titoli non coperti da SEC il forecast resta soprattutto statistico-tecnico.",
+                12, MUTED, false));
+        content.addView(b, cardParams());
+
+        LinearLayout c = card(SURFACE_2);
+        c.addView(text("PESI FACTOR SCORE", 11, MUTED, true));
+        c.addView(metricLine("Quality", "25%"));
+        c.addView(metricLine("Value", "20%"));
+        c.addView(metricLine("Momentum", "20%"));
+        c.addView(metricLine("Growth", "15%"));
+        c.addView(metricLine("Trend", "10%"));
+        c.addView(metricLine("Risk", "10%"));
+        content.addView(c, cardParams());
+
+        content.addView(text(
+                "Il modello è ancora da validare tramite backtest point-in-time. Gli scenari servono per ricerca comparativa, non garantiscono rendimenti futuri.",
+                11, MUTED, false));
+    }
+
+    private TextView sortButton(String label, boolean active, View.OnClickListener l) {
+        TextView t = text(label, 13, active ? TEXT : MUTED, true);
+        t.setGravity(Gravity.CENTER);
+        t.setBackground(rounded(active ? Color.rgb(29, 64, 111) : SURFACE, 12, active ? BLUE : BORDER, 1));
+        t.setOnClickListener(l);
+        return t;
+    }
+
+    private TextView primaryButton(String label, View.OnClickListener l) {
+        TextView t = text(label, 15, Color.WHITE, true);
+        t.setGravity(Gravity.CENTER);
+        t.setBackground(rounded(BLUE, 14, BLUE, 1));
+        t.setPadding(dp(12), dp(14), dp(12), dp(14));
+        t.setOnClickListener(l);
+        return t;
+    }
+
+    private TextView secondaryButton(String label, View.OnClickListener l) {
+        TextView t = text(label, 14, TEXT, true);
+        t.setGravity(Gravity.CENTER);
+        t.setBackground(rounded(SURFACE_2, 12, BORDER, 1));
+        t.setPadding(dp(12), dp(12), dp(12), dp(12));
+        t.setOnClickListener(l);
+        return t;
     }
 
     private LinearLayout card(int color) {
         LinearLayout c = new LinearLayout(this);
         c.setOrientation(LinearLayout.VERTICAL);
-        c.setBackground(rounded(color, 18, BORDER, 1));
-        c.setPadding(dp(15), dp(14), dp(15), dp(14));
+        c.setPadding(dp(14), dp(13), dp(14), dp(13));
+        c.setBackground(rounded(color, 16, BORDER, 1));
         return c;
     }
 
-    private TextView primaryButton(String label, View.OnClickListener listener) {
-        TextView b = text(label, 15, Color.WHITE, true);
+    private LinearLayout metricLine(String label, String value) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setPadding(0, dp(6), 0, dp(6));
+        TextView l = text(label, 13, MUTED, false);
+        TextView v = text(value, 13, TEXT, true);
+        v.setGravity(Gravity.END);
+        row.addView(l, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        row.addView(v);
+        return row;
+    }
+
+    private View statBlock(String label, String value) {
+        LinearLayout b = new LinearLayout(this);
+        b.setOrientation(LinearLayout.VERTICAL);
         b.setGravity(Gravity.CENTER);
-        b.setBackground(rounded(BLUE_DARK, 14, BLUE, 1));
-        b.setPadding(dp(14), dp(13), dp(14), dp(13));
-        b.setOnClickListener(listener);
+        TextView l = text(label, 10, MUTED, true);
+        l.setGravity(Gravity.CENTER);
+        TextView v = text(value, 14, TEXT, true);
+        v.setGravity(Gravity.CENTER);
+        v.setPadding(0, dp(3), 0, 0);
+        b.addView(l);
+        b.addView(v);
         return b;
     }
 
-    private TextView secondaryButton(String label, View.OnClickListener listener) {
-        TextView b = text(label, 14, BLUE, true);
-        b.setGravity(Gravity.CENTER);
-        b.setBackground(rounded(SURFACE_2, 14, BORDER, 1));
-        b.setPadding(dp(14), dp(12), dp(14), dp(12));
-        b.setOnClickListener(listener);
-        return b;
+    private TextView section(String title) {
+        TextView t = text(title, 18, TEXT, true);
+        t.setPadding(dp(2), dp(14), 0, dp(8));
+        return t;
     }
 
-    private void emptyState(String title, String body, String action, View.OnClickListener listener) {
+    private void emptyState(String title, String body, String action, View.OnClickListener l) {
         LinearLayout c = card(SURFACE);
-        TextView icon = text("—", 34, BLUE, true);
-        icon.setGravity(Gravity.CENTER);
-        c.addView(icon);
-        TextView t = text(title, 19, TEXT, true);
-        t.setGravity(Gravity.CENTER);
-        t.setPadding(0, dp(4), 0, dp(6));
-        c.addView(t);
+        TextView a = text(title, 19, TEXT, true);
+        a.setGravity(Gravity.CENTER);
+        c.addView(a);
         TextView b = text(body, 13, MUTED, false);
         b.setGravity(Gravity.CENTER);
-        b.setPadding(dp(12), 0, dp(12), dp(14));
+        b.setPadding(dp(12), dp(8), dp(12), dp(14));
         c.addView(b);
-        c.addView(primaryButton(action, listener), buttonParams());
+        c.addView(primaryButton(action, l), buttonParams());
         content.addView(c, cardParams());
     }
 
-    private StockResult firstValid() {
-        for (StockResult r : results) if (Maths.ok(r.composite)) return r;
+    private StockResult leader() {
+        if (results.isEmpty()) return null;
+        List<StockResult> copy = new ArrayList<>(results);
+        Collections.sort(copy, (a, b) -> compareScore(b.composite, a.composite));
+        for (StockResult r : copy) if (Maths.ok(r.composite)) return r;
         return null;
     }
 
-    private void navigateBack() {
-        if (currentScreen == SCREEN_DETAIL) {
-            showRanking();
-        } else if (currentScreen == SCREEN_RANKING || currentScreen == SCREEN_INFO) {
-            showHome();
-        } else {
-            finish();
+    private StockResult firstValid() {
+        for (StockResult r : results) {
+            double v = sortOpportunity ? r.opportunity : r.composite;
+            if (Maths.ok(v)) return r;
         }
+        return null;
+    }
+
+    private String safeName(StockResult r) {
+        return r.name == null || r.name.isEmpty() ? r.symbol : r.name;
+    }
+
+    private void navigateBack() {
+        if (currentScreen == SCREEN_DETAIL) showRanking();
+        else if (currentScreen == SCREEN_RANKING || currentScreen == SCREEN_INFO) showHome();
+        else finish();
     }
 
     @Override
@@ -757,20 +706,22 @@ public class MainActivity extends Activity {
         GradientDrawable d = new GradientDrawable();
         d.setColor(fill);
         d.setCornerRadius(dp(radiusDp));
-        if (strokeDp > 0 && strokeColor != Color.TRANSPARENT) {
-            d.setStroke(dp(strokeDp), strokeColor);
-        }
+        if (strokeDp > 0 && strokeColor != Color.TRANSPARENT) d.setStroke(dp(strokeDp), strokeColor);
         return d;
     }
 
     private GradientDrawable scorePill(double s) {
-        int color = scoreColor(s);
-        int fill;
-        if (!Maths.ok(s)) fill = SURFACE_2;
-        else if (s >= 70) fill = Color.rgb(19, 55, 36);
-        else if (s >= 50) fill = Color.rgb(62, 44, 15);
-        else fill = Color.rgb(62, 25, 30);
-        return rounded(fill, 999, color, 1);
+        if (!Maths.ok(s)) return rounded(SURFACE_2, 999, BORDER, 1);
+        if (s >= 70) return rounded(Color.rgb(19, 55, 36), 999, GREEN, 1);
+        if (s >= 50) return rounded(Color.rgb(62, 44, 15), 999, ORANGE, 1);
+        return rounded(Color.rgb(62, 25, 30), 999, RED, 1);
+    }
+
+    private int scoreColor(double s) {
+        if (!Maths.ok(s)) return MUTED;
+        if (s >= 70) return GREEN;
+        if (s >= 50) return ORANGE;
+        return RED;
     }
 
     private LinearLayout.LayoutParams matchWrap() {
@@ -795,41 +746,24 @@ public class MainActivity extends Activity {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
     }
 
-    private int scoreColor(double s) {
-        if (!Maths.ok(s)) return MUTED;
-        if (s >= 70) return GREEN;
-        if (s >= 50) return ORANGE;
-        return RED;
-    }
-
-    private String scoreBand(double s) {
-        if (!Maths.ok(s)) return "Dati insufficienti";
-        if (s >= 70) return "Profilo forte";
-        if (s >= 50) return "Profilo intermedio";
-        return "Profilo debole";
-    }
-
     private String fmtScore(double v) {
         return Maths.ok(v) ? String.format(Locale.ITALY, "%.0f/100", v) : "N/D";
     }
 
     private String fmtPrice(StockResult r) {
-        return Maths.ok(r.price)
-                ? String.format(Locale.ITALY, "%.2f %s", r.price,
-                r.currency == null ? "" : r.currency)
-                : "N/D";
+        return Maths.ok(r.price) ? fmtMoney(r.price, r.currency) : "N/D";
+    }
+
+    private String fmtMoney(double v, String currency) {
+        return Maths.ok(v) ? String.format(Locale.ITALY, "%.2f %s", v, currency == null ? "" : currency) : "N/D";
     }
 
     private String fmtPct(double v) {
-        return Maths.ok(v)
-                ? String.format(Locale.ITALY, "%+.1f%%", v * 100.0)
-                : "N/D";
+        return Maths.ok(v) ? String.format(Locale.ITALY, "%+.1f%%", v * 100.0) : "N/D";
     }
 
     private String fmtNum(double v, String suffix) {
-        return Maths.ok(v)
-                ? String.format(Locale.ITALY, "%.2f%s", v, suffix)
-                : "N/D";
+        return Maths.ok(v) ? String.format(Locale.ITALY, "%.2f%s", v, suffix) : "N/D";
     }
 
     @Override
