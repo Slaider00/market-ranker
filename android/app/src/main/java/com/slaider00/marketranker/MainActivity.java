@@ -179,7 +179,7 @@ public class MainActivity extends Activity {
                 14, MUTED, false));
         content.addView(hero, cardParams());
 
-        TextView label = text("Ticker da analizzare", 13, TEXT, true);
+        TextView label = text("Inserisci i titoli", 13, TEXT, true);
         label.setPadding(dp(2), dp(8), 0, dp(8));
         content.addView(label);
 
@@ -209,7 +209,7 @@ public class MainActivity extends Activity {
         content.addView(progress, pp);
 
         status = text(
-                results.isEmpty() ? "Nessuna lista precompilata: scegli tu l'universo." :
+                results.isEmpty() ? "Inserisci uno o più ticker e premi Analizza." :
                         results.size() + " titoli disponibili nella sessione.",
                 12, MUTED, false);
         status.setPadding(dp(2), dp(10), 0, 0);
@@ -402,6 +402,18 @@ public class MainActivity extends Activity {
                 new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         c.addView(metrics);
 
+        LinearLayout signals = new LinearLayout(this);
+        signals.setOrientation(LinearLayout.HORIZONTAL);
+        signals.setPadding(0, dp(10), 0, 0);
+        signals.addView(signalBlock("Valutazione", r.valuationStatus),
+                new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        LinearLayout.LayoutParams ts = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
+        ts.leftMargin = dp(6); ts.rightMargin = dp(6);
+        signals.addView(signalBlock("Tecnico", r.technicalSignal), ts);
+        signals.addView(signalBlock("Outlook 6M", r.outlook6m),
+                new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        c.addView(signals);
+
         TextView comment = text(r.comment, 12, MUTED, false);
         comment.setPadding(0, dp(10), 0, 0);
         c.addView(comment);
@@ -432,6 +444,19 @@ public class MainActivity extends Activity {
         comment.setPadding(0, dp(12), 0, 0);
         hero.addView(comment);
         content.addView(hero, cardParams());
+
+        LinearLayout verdict = card(SURFACE_2);
+        verdict.addView(text("VERDETTO RAPIDO", 11, PURPLE, true));
+        TextView verdictText = text(r.overallVerdict, 22, statusColor(r.overallVerdict), true);
+        verdictText.setPadding(0, dp(6), 0, dp(10));
+        verdict.addView(verdictText);
+        verdict.addView(signalLine("Valutazione", r.valuationStatus));
+        verdict.addView(signalLine("Segnale tecnico", r.technicalSignal));
+        verdict.addView(signalLine("Outlook 6 mesi", r.outlook6m));
+        if (Maths.ok(r.valuationGap)) {
+            verdict.addView(metricLine("Scarto fair value", fmtPct(r.valuationGap)));
+        }
+        content.addView(verdict, cardParams());
 
         content.addView(section("Scenario 6 mesi"));
         LinearLayout scenarios = new LinearLayout(this);
@@ -572,6 +597,52 @@ public class MainActivity extends Activity {
         content.addView(text(
                 "Il modello è ancora da validare tramite backtest point-in-time. Gli scenari servono per ricerca comparativa, non garantiscono rendimenti futuri.",
                 11, MUTED, false));
+    }
+
+    private View signalBlock(String label, String status) {
+        LinearLayout b = new LinearLayout(this);
+        b.setOrientation(LinearLayout.VERTICAL);
+        b.setGravity(Gravity.CENTER);
+        b.setPadding(dp(6), dp(8), dp(6), dp(8));
+        b.setBackground(rounded(SURFACE_2, 12, BORDER, 1));
+        TextView l = text(label, 9, MUTED, true);
+        l.setGravity(Gravity.CENTER);
+        b.addView(l);
+        TextView s = text(status == null ? "N/D" : status, 11, statusColor(status), true);
+        s.setGravity(Gravity.CENTER);
+        s.setPadding(0, dp(4), 0, 0);
+        b.addView(s);
+        return b;
+    }
+
+    private View signalLine(String label, String status) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, dp(6), 0, dp(6));
+        TextView l = text(label, 13, MUTED, false);
+        row.addView(l, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        TextView s = text(status == null ? "N/D" : status, 13, statusColor(status), true);
+        s.setPadding(dp(10), dp(6), dp(10), dp(6));
+        s.setBackground(statusPill(status));
+        row.addView(s);
+        return row;
+    }
+
+    private int statusColor(String status) {
+        if (status == null) return MUTED;
+        if (status.contains("UNDERVALUED") || status.contains("BULLISH") || status.contains("POSITIVE")) return GREEN;
+        if (status.contains("OVERVALUED") || status.contains("BEARISH") || status.contains("CAUTION")) return RED;
+        if (status.contains("FAIR") || status.contains("NEUTRAL") || status.contains("MIXED")) return ORANGE;
+        return MUTED;
+    }
+
+    private GradientDrawable statusPill(String status) {
+        int c = statusColor(status);
+        if (c == GREEN) return rounded(Color.rgb(19, 55, 36), 999, GREEN, 1);
+        if (c == RED) return rounded(Color.rgb(62, 25, 30), 999, RED, 1);
+        if (c == ORANGE) return rounded(Color.rgb(62, 44, 15), 999, ORANGE, 1);
+        return rounded(SURFACE_2, 999, BORDER, 1);
     }
 
     private TextView sortButton(String label, boolean active, View.OnClickListener l) {
