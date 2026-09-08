@@ -101,7 +101,9 @@ public class MarketDataClient {
         JSONObject root = new JSONObject(get(
                 "https://www.sec.gov/files/company_tickers.json",
                 "MarketRankerAndroid/1.0 github.com/Slaider00/market-ranker"));
-        for (String key : root.keySet()) {
+        java.util.Iterator<String> keys = root.keys();
+        while (keys.hasNext()) {
+            String key = keys.next();
             JSONObject row = root.getJSONObject(key);
             secTickerMap.put(row.getString("ticker").toUpperCase(), row.getInt("cik_str"));
         }
