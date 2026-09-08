@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Market Ranker</string>
+    <string name="market_ranker_url">https://market-ranker-niwvsrg3cctxszcabnvbi6.streamlit.app/</string>
+</resources>
