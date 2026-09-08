@@ -95,6 +95,7 @@ public class Analyzer {
 
         r.composite = composite(r);
         buildScenario(r);
+        buildSignals(r);
         r.comment = comment(r);
         return r;
     }
@@ -245,11 +246,58 @@ public class Analyzer {
         return Maths.ok(x) ? x : 0;
     }
 
+    private void buildSignals(StockResult r) {
+        if (Maths.ok(r.price) && r.price > 0 && Maths.ok(r.fundamentalTarget)) {
+            r.valuationGap = r.fundamentalTarget / r.price - 1.0;
+            if (r.valuationGap >= 0.10) r.valuationStatus = "UNDERVALUED";
+            else if (r.valuationGap <= -0.10) r.valuationStatus = "OVERVALUED";
+            else r.valuationStatus = "FAIR VALUE";
+        } else if (Maths.ok(r.valuation)) {
+            if (r.valuation >= 65) r.valuationStatus = "UNDERVALUED";
+            else if (r.valuation <= 35) r.valuationStatus = "OVERVALUED";
+            else r.valuationStatus = "FAIR VALUE";
+        } else {
+            r.valuationStatus = "N/D";
+        }
+
+        r.technicalSignalScore = Maths.mean(r.momentum, r.trend);
+        if (Maths.ok(r.technicalSignalScore)) {
+            if (r.technicalSignalScore >= 67) r.technicalSignal = "BULLISH";
+            else if (r.technicalSignalScore <= 33) r.technicalSignal = "BEARISH";
+            else r.technicalSignal = "NEUTRAL";
+        } else {
+            r.technicalSignal = "N/D";
+        }
+
+        if (Maths.ok(r.expectedReturn6m)) {
+            if (r.expectedReturn6m >= 0.08) r.outlook6m = "BULLISH";
+            else if (r.expectedReturn6m <= -0.08) r.outlook6m = "BEARISH";
+            else r.outlook6m = "NEUTRAL";
+        } else {
+            r.outlook6m = "N/D";
+        }
+
+        int positive = 0;
+        int negative = 0;
+        if ("UNDERVALUED".equals(r.valuationStatus)) positive++;
+        if ("OVERVALUED".equals(r.valuationStatus)) negative++;
+        if ("BULLISH".equals(r.technicalSignal)) positive++;
+        if ("BEARISH".equals(r.technicalSignal)) negative++;
+        if ("BULLISH".equals(r.outlook6m)) positive++;
+        if ("BEARISH".equals(r.outlook6m)) negative++;
+
+        if (positive >= 3) r.overallVerdict = "STRONG POSITIVE";
+        else if (negative >= 3) r.overallVerdict = "STRONG CAUTION";
+        else if (positive >= 2 && negative == 0) r.overallVerdict = "POSITIVE";
+        else if (negative >= 2 && positive == 0) r.overallVerdict = "CAUTION";
+        else r.overallVerdict = "MIXED";
+    }
+
     private String comment(StockResult r) {
         List<String> parts = new ArrayList<>();
-        if (r.composite >= 70) parts.add("Profilo fattoriale forte.");
-        else if (r.composite >= 50) parts.add("Profilo fattoriale intermedio.");
-        else parts.add("Profilo fattoriale debole.");
+        if (!"N/D".equals(r.valuationStatus)) parts.add("Valutazione: " + r.valuationStatus + ".");
+        if (!"N/D".equals(r.technicalSignal)) parts.add("Segnale tecnico: " + r.technicalSignal + ".");
+        if (!"N/D".equals(r.outlook6m)) parts.add("Outlook 6M: " + r.outlook6m + ".");
 
         if (Maths.ok(r.expectedReturn6m))
             parts.add(String.format("Scenario atteso 6M %+.1f%% con confidence %.0f/100.",
