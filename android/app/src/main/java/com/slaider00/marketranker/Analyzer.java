@@ -33,11 +33,10 @@ public class Analyzer {
         r.macd = macdSeries.get(macdSeries.size() - 1);
         r.macdSignal = signal.get(signal.size() - 1);
 
-        double m = Maths.mean(
+        r.momentum = scale(Maths.mean(
                 Maths.higher(r.momentum3m, -0.10, 0.20),
                 Maths.higher(r.momentum6m, -0.15, 0.35),
-                Maths.higher(r.momentum12m, -0.20, 0.50));
-        r.momentum = scale(m);
+                Maths.higher(r.momentum12m, -0.20, 0.50)));
 
         double p50 = Maths.ok(r.sma50) ? r.price / r.sma50 - 1 : Double.NaN;
         double p200 = Maths.ok(r.sma200) ? r.price / r.sma200 - 1 : Double.NaN;
@@ -88,11 +87,14 @@ public class Analyzer {
             r.growth = scale(Maths.mean(
                     Maths.higher(r.revenueGrowth, 0.00, 0.20),
                     Maths.higher(r.earningsGrowth, 0.00, 0.25)));
+
+            r.fundamentalsAvailable = Maths.ok(r.quality) || Maths.ok(r.valuation) || Maths.ok(r.growth);
         } catch (Exception ignored) {
-            // Non-US or unavailable fundamentals: technical factors remain valid.
+            r.fundamentalsAvailable = false;
         }
 
         r.composite = composite(r);
+        buildScenario(r);
         r.comment = comment(r);
         return r;
     }
@@ -116,22 +118,148 @@ public class Analyzer {
         return Maths.ok(value) ? value * weight : 0;
     }
 
+    private double clamp(double x, double lo, double hi) {
+        return Math.max(lo, Math.min(hi, x));
+    }
+
+    private void buildScenario(StockResult r) {
+        if (!Maths.ok(r.price) || r.price <= 0) return;
+
+        double momSignal = Maths.mean(r.momentum3m, r.momentum6m, r.momentum12m);
+        if (!Maths.ok(momSignal)) momSignal = 0;
+        double trendSignal = Maths.ok(r.trend) ? (r.trend - 50.0) / 50.0 : 0;
+        double qualitySignal = Maths.ok(r.quality) ? (r.quality - 50.0) / 50.0 : 0;
+        double growthSignal = Maths.ok(r.growth) ? (r.growth - 50.0) / 50.0 : 0;
+        double valueSignal = Maths.ok(r.valuation) ? (r.valuation - 50.0) / 50.0 : 0;
+
+        double statReturn =
+                0.34 * nz(r.momentum6m) +
+                0.22 * nz(r.momentum12m) +
+                0.12 * nz(r.momentum3m) +
+                0.055 * trendSignal +
+                0.030 * qualitySignal +
+                0.035 * growthSignal +
+                0.025 * valueSignal;
+        statReturn = clamp(statReturn, -0.32, 0.38);
+        r.statisticalTarget = r.price * (1.0 + statReturn);
+
+        if (Maths.ok(r.pe) && r.pe > 0) {
+            double growth = Maths.ok(r.earningsGrowth) ? clamp(r.earningsGrowth, -0.45, 0.55) : 0;
+            double currentEps = r.price / r.pe;
+            double projectedEps = currentEps * Math.sqrt(Math.max(0.55, 1.0 + growth));
+
+            double qualityAdj = Maths.ok(r.quality) ? (r.quality - 50.0) * 0.06 : 0;
+            double growthAdj = Maths.ok(r.growth) ? (r.growth - 50.0) * 0.08 : 0;
+            double normalizedPe = clamp(20.0 + qualityAdj + growthAdj, 10.0, 34.0);
+            double peTarget = projectedEps * normalizedPe;
+
+            if (Maths.ok(r.fcfYield) && r.fcfYield > -0.20) {
+                double desiredYield = clamp(0.055 - 0.00020 * (Maths.ok(r.quality) ? r.quality - 50 : 0), 0.035, 0.080);
+                double fcfTarget = r.fcfYield > 0 ? r.price * (r.fcfYield / desiredYield) : Double.NaN;
+                r.fundamentalTarget = Maths.ok(fcfTarget)
+                        ? 0.70 * peTarget + 0.30 * fcfTarget
+                        : peTarget;
+            } else {
+                r.fundamentalTarget = peTarget;
+            }
+            r.fundamentalTarget = clamp(r.fundamentalTarget, r.price * 0.55, r.price * 1.65);
+        }
+
+        if (Maths.ok(r.fundamentalTarget)) {
+            double factorWeight = 0.52;
+            r.baseTarget = factorWeight * r.fundamentalTarget + (1.0 - factorWeight) * r.statisticalTarget;
+            r.forecastMethod = "ibrido fondamentale + statistico";
+        } else {
+            r.baseTarget = r.statisticalTarget;
+            r.forecastMethod = "statistico-tecnico";
+        }
+
+        double vol6m = Maths.ok(r.volatilityAnnual)
+                ? clamp(r.volatilityAnnual * Math.sqrt(0.5), 0.10, 0.55)
+                : 0.25;
+        double downsideSpread = clamp(0.65 * vol6m + 0.05, 0.10, 0.42);
+        double upsideSpread = clamp(0.55 * vol6m + 0.04, 0.09, 0.38);
+
+        r.bearTarget = r.baseTarget * (1.0 - downsideSpread);
+        r.bullTarget = r.baseTarget * (1.0 + upsideSpread);
+
+        double direction = 0;
+        if (Maths.ok(r.composite)) direction += (r.composite - 50.0) / 50.0 * 0.12;
+        if (Maths.ok(r.momentum)) direction += (r.momentum - 50.0) / 50.0 * 0.09;
+        if (Maths.ok(r.trend)) direction += (r.trend - 50.0) / 50.0 * 0.06;
+        if (Maths.ok(r.risk)) direction += (r.risk - 50.0) / 50.0 * 0.04;
+        direction = clamp(direction, -0.20, 0.20);
+
+        r.bullProbability = clamp(0.20 + direction, 0.08, 0.38);
+        r.bearProbability = clamp(0.20 - direction, 0.08, 0.38);
+        r.baseProbability = 1.0 - r.bullProbability - r.bearProbability;
+
+        r.expectedPrice6m =
+                r.bearProbability * r.bearTarget +
+                r.baseProbability * r.baseTarget +
+                r.bullProbability * r.bullTarget;
+        r.expectedReturn6m = r.expectedPrice6m / r.price - 1.0;
+        r.downsideBear = r.bearTarget / r.price - 1.0;
+        r.upsideBull = r.bullTarget / r.price - 1.0;
+
+        double downsideAbs = Math.abs(Math.min(0, r.downsideBear));
+        double upsideBase = Math.max(0, r.expectedReturn6m);
+        r.riskReward = downsideAbs > 0.001 ? upsideBase / downsideAbs : Double.NaN;
+
+        int coverage = 0;
+        if (Maths.ok(r.momentum)) coverage++;
+        if (Maths.ok(r.trend)) coverage++;
+        if (Maths.ok(r.risk)) coverage++;
+        if (Maths.ok(r.quality)) coverage++;
+        if (Maths.ok(r.valuation)) coverage++;
+        if (Maths.ok(r.growth)) coverage++;
+
+        double coverageScore = coverage / 6.0;
+        double agreementScore = 0.58;
+        if (Maths.ok(r.fundamentalTarget) && Maths.ok(r.statisticalTarget)) {
+            double gap = Math.abs(r.fundamentalTarget - r.statisticalTarget) / r.price;
+            agreementScore = 1.0 - clamp(gap / 0.45, 0, 1);
+        }
+        double stabilityScore = Maths.ok(r.volatilityAnnual)
+                ? 1.0 - clamp((r.volatilityAnnual - 0.18) / 0.55, 0, 1)
+                : 0.45;
+        r.confidence = clamp(
+                100.0 * (0.48 * coverageScore + 0.30 * agreementScore + 0.22 * stabilityScore),
+                20.0, 95.0);
+
+        double returnScore = 100.0 * Maths.higher(r.expectedReturn6m, -0.08, 0.25);
+        double downsideScore = 100.0 * Maths.lower(downsideAbs, 0.10, 0.38);
+        double rrScore = Maths.ok(r.riskReward) ? 100.0 * Maths.higher(r.riskReward, 0.25, 1.50) : 45.0;
+        double factorScore = Maths.ok(r.composite) ? r.composite : 50.0;
+
+        r.opportunity =
+                0.35 * returnScore +
+                0.20 * downsideScore +
+                0.15 * rrScore +
+                0.15 * r.confidence +
+                0.15 * factorScore;
+        r.opportunity = clamp(r.opportunity, 0, 100);
+    }
+
+    private double nz(double x) {
+        return Maths.ok(x) ? x : 0;
+    }
+
     private String comment(StockResult r) {
         List<String> parts = new ArrayList<>();
-        if (r.composite >= 70) parts.add("Profilo complessivamente forte.");
-        else if (r.composite >= 50) parts.add("Profilo complessivamente intermedio.");
-        else parts.add("Profilo complessivamente debole.");
+        if (r.composite >= 70) parts.add("Profilo fattoriale forte.");
+        else if (r.composite >= 50) parts.add("Profilo fattoriale intermedio.");
+        else parts.add("Profilo fattoriale debole.");
 
+        if (Maths.ok(r.expectedReturn6m))
+            parts.add(String.format("Scenario atteso 6M %+.1f%% con confidence %.0f/100.",
+                    r.expectedReturn6m * 100, r.confidence));
         if (Maths.ok(r.momentum12m) && r.momentum >= 65)
-            parts.add(String.format("Momentum sostenuto dal %+.1f%% a 12 mesi.", r.momentum12m * 100));
-        if (Maths.ok(r.roe) && r.quality >= 65)
-            parts.add(String.format("Quality sostenuta da ROE %.1f%%.", r.roe * 100));
+            parts.add(String.format("Momentum %+.1f%% a 12 mesi.", r.momentum12m * 100));
         if (Maths.ok(r.pe) && r.pe > 30)
-            parts.add(String.format("Value penalizzato da P/E %.1fx.", r.pe));
+            parts.add(String.format("Valutazione impegnativa: P/E %.1fx.", r.pe));
         if (Maths.ok(r.volatilityAnnual) && r.volatilityAnnual > 0.40)
-            parts.add(String.format("Rischio penalizzato da volatilità %.1f%%.", r.volatilityAnnual * 100));
-        if (parts.size() == 1)
-            parts.add("Il punteggio combina i fattori disponibili e ripesa automaticamente quelli mancanti.");
+            parts.add(String.format("Volatilità elevata: %.1f%% annua.", r.volatilityAnnual * 100));
 
         StringBuilder sb = new StringBuilder();
         for (String s : parts) {
