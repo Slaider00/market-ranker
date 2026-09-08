@@ -133,6 +133,14 @@ st.markdown(
         font-size: .79rem;
         opacity: .64;
       }
+      .rank-comment {
+        margin-top: .55rem;
+        padding-top: .5rem;
+        border-top: 1px solid var(--mr-border);
+        font-size: .79rem;
+        line-height: 1.4;
+        opacity: .78;
+      }
 
       .score-good { color: var(--mr-positive); }
       .score-mid { color: var(--mr-warning); }
@@ -232,6 +240,52 @@ def price_text(row: pd.Series) -> str:
     return f"{float(row.get('price')):.2f} {row.get('currency') or ''}".strip()
 
 
+FACTOR_LABELS = {
+    "quality": "Quality",
+    "valuation": "Value",
+    "momentum": "Momentum",
+    "growth": "Growth",
+    "trend": "Trend",
+    "risk": "Risk",
+}
+
+FACTOR_DESCRIPTIONS = {
+    "Quality": "solidità e redditività: ROE, margini, debito e conversione dell'utile in cassa.",
+    "Value": "valutazione relativa: P/E, EV/EBITDA, P/B e FCF Yield.",
+    "Momentum": "forza del prezzo negli ultimi 3, 6 e 12 mesi.",
+    "Growth": "crescita recente di ricavi e utili.",
+    "Trend": "posizionamento del prezzo rispetto alle medie mobili e MACD.",
+    "Risk": "penalizza volatilità, drawdown e ampiezza dei movimenti.",
+}
+
+
+def stock_comment(row: pd.Series) -> str:
+    available = []
+    for key, label in FACTOR_LABELS.items():
+        value = row.get(key)
+        if value is not None and not pd.isna(value):
+            available.append((label, float(value)))
+
+    if not available:
+        return "Dati insufficienti per una lettura sintetica."
+
+    ordered = sorted(available, key=lambda x: x[1], reverse=True)
+    strengths = ", ".join(x[0] for x in ordered[:2])
+    weakest = ordered[-1][0]
+    score = row.get("composite")
+
+    if score is None or pd.isna(score):
+        opening = "Profilo incompleto."
+    elif float(score) >= 70:
+        opening = "Profilo complessivamente forte."
+    elif float(score) >= 50:
+        opening = "Profilo complessivamente intermedio."
+    else:
+        opening = "Profilo complessivamente debole."
+
+    return f"{opening} Punti migliori: {strengths}. Area più debole: {weakest}."
+
+
 def rank_card(row: pd.Series) -> None:
     sector = row.get("sector") or "Settore non disponibile"
     st.markdown(
@@ -246,6 +300,7 @@ def rank_card(row: pd.Series) -> None:
             <span>{price_text(row)}</span>
             <span>{sector}</span>
           </div>
+          <div class="rank-comment">{stock_comment(row)}</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -352,6 +407,23 @@ if not df.empty:
     s2.metric("Score medio", "N/D" if pd.isna(avg_score) else f"{avg_score:.0f}/100")
     s3.metric("Leader", f"{leader['symbol']} · {score_text(leader.get('composite'))}/100")
 
+with st.expander("Come leggere gli score", expanded=False):
+    st.markdown(
+        """
+        **Composite** combina i sei fattori del modello. Indicativamente: **70–100** profilo forte,
+        **50–69** intermedio, **sotto 50** debole rispetto alle soglie interne del modello.
+
+        - **Quality** — solidità e redditività dell'azienda.
+        - **Value** — quanto la valutazione appare contenuta rispetto a utili, EBITDA, patrimonio e cassa.
+        - **Momentum** — forza recente del prezzo.
+        - **Growth** — crescita di ricavi e utili.
+        - **Trend** — direzione tecnica del titolo.
+        - **Risk** — stabilità del titolo; uno score più alto indica un profilo di rischio più favorevole.
+
+        Gli score non equivalgono a “comprare/vendere”: servono a confrontare rapidamente i titoli con una metodologia coerente.
+        """
+    )
+
 st.write("")
 tab_rank, tab_detail, tab_macro = st.tabs(["Ranking", "Dettaglio titolo", "Macro"])
 
@@ -455,6 +527,8 @@ with tab_detail:
         h1.metric("Prezzo", price_text(row))
         h2.metric("Composite", f"{score_text(row.get('composite'))}/100")
         h3.metric("Posizione", f"#{int(row['rank'])} su {len(df)}")
+
+        st.info("**Lettura rapida:** " + stock_comment(row))
 
         st.markdown("#### Profilo fattoriale")
         factor_left, factor_right = st.columns([1.25, 1])
