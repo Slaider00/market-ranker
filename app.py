@@ -259,31 +259,128 @@ FACTOR_DESCRIPTIONS = {
 }
 
 
+def _v(row: pd.Series, key: str):
+    value = row.get(key)
+    return None if value is None or pd.isna(value) else float(value)
+
+
 def stock_comment(row: pd.Series) -> str:
     available = []
     for key, label in FACTOR_LABELS.items():
-        value = row.get(key)
-        if value is not None and not pd.isna(value):
-            available.append((label, float(value)))
+        value = _v(row, key)
+        if value is not None:
+            available.append((key, label, value))
 
     if not available:
         return "Dati insufficienti per una lettura sintetica."
 
-    ordered = sorted(available, key=lambda x: x[1], reverse=True)
-    strengths = ", ".join(x[0] for x in ordered[:2])
-    weakest = ordered[-1][0]
-    score = row.get("composite")
+    ordered = sorted(available, key=lambda x: x[2], reverse=True)
+    best_key, best_label, _ = ordered[0]
+    second_key, second_label, _ = ordered[1] if len(ordered) > 1 else ordered[0]
+    weak_key, weak_label, _ = ordered[-1]
 
-    if score is None or pd.isna(score):
+    score = _v(row, "composite")
+    if score is None:
         opening = "Profilo incompleto."
-    elif float(score) >= 70:
+    elif score >= 70:
         opening = "Profilo complessivamente forte."
-    elif float(score) >= 50:
+    elif score >= 50:
         opening = "Profilo complessivamente intermedio."
     else:
         opening = "Profilo complessivamente debole."
 
-    return f"{opening} Punti migliori: {strengths}. Area più debole: {weakest}."
+    reasons = []
+
+    pe = _v(row, "pe")
+    fcf_yield = _v(row, "fcf_yield")
+    roe = _v(row, "roe")
+    margin = _v(row, "profit_margin")
+    debt_equity = _v(row, "debt_to_equity")
+    rev_growth = _v(row, "revenue_growth")
+    earn_growth = _v(row, "earnings_growth")
+    mom3 = _v(row, "momentum_3m")
+    mom12 = _v(row, "momentum_12m")
+    vol = _v(row, "volatility_annual")
+    drawdown = _v(row, "max_drawdown")
+    rsi = _v(row, "rsi14")
+
+    if best_key == "quality":
+        parts = []
+        if roe is not None:
+            parts.append(f"ROE {roe*100:.1f}%")
+        if margin is not None:
+            parts.append(f"margine netto {margin*100:.1f}%")
+        if debt_equity is not None:
+            parts.append(f"Debt/Equity {debt_equity:.0f}")
+        if parts:
+            reasons.append("Quality sostenuta da " + ", ".join(parts[:2]) + ".")
+    elif best_key == "valuation":
+        parts = []
+        if pe is not None:
+            parts.append(f"P/E {pe:.1f}x")
+        if fcf_yield is not None:
+            parts.append(f"FCF Yield {fcf_yield*100:.1f}%")
+        if parts:
+            reasons.append("Valutazione favorita da " + " e ".join(parts) + ".")
+    elif best_key == "momentum":
+        parts = []
+        if mom3 is not None:
+            parts.append(f"{mom3*100:+.1f}% a 3 mesi")
+        if mom12 is not None:
+            parts.append(f"{mom12*100:+.1f}% a 12 mesi")
+        if parts:
+            reasons.append("Momentum sostenuto da " + " e ".join(parts) + ".")
+    elif best_key == "growth":
+        parts = []
+        if rev_growth is not None:
+            parts.append(f"ricavi {rev_growth*100:+.1f}%")
+        if earn_growth is not None:
+            parts.append(f"utili {earn_growth*100:+.1f}%")
+        if parts:
+            reasons.append("Growth sostenuto da " + " e ".join(parts) + ".")
+    elif best_key == "risk":
+        parts = []
+        if vol is not None:
+            parts.append(f"volatilità annua {vol*100:.1f}%")
+        if drawdown is not None:
+            parts.append(f"drawdown max {drawdown*100:.1f}%")
+        if parts:
+            reasons.append("Profilo di rischio relativamente favorevole con " + " e ".join(parts) + ".")
+    elif best_key == "trend":
+        if rsi is not None:
+            reasons.append(f"Trend tecnico favorevole; RSI 14 a {rsi:.1f}.")
+
+    if weak_key == "valuation":
+        if pe is not None and pe > 30:
+            reasons.append(f"Il Value è penalizzato da un P/E elevato ({pe:.1f}x).")
+        elif fcf_yield is not None and fcf_yield < 0.03:
+            reasons.append(f"Il Value è frenato da un FCF Yield contenuto ({fcf_yield*100:.1f}%).")
+    elif weak_key == "quality":
+        if roe is not None and roe < 0.10:
+            reasons.append(f"La Quality è frenata da un ROE modesto ({roe*100:.1f}%).")
+        elif debt_equity is not None and debt_equity > 150:
+            reasons.append(f"La Quality risente di un Debt/Equity elevato ({debt_equity:.0f}).")
+    elif weak_key == "growth":
+        if rev_growth is not None and rev_growth < 0:
+            reasons.append(f"Il Growth è penalizzato da ricavi in calo ({rev_growth*100:.1f}%).")
+        elif earn_growth is not None and earn_growth < 0:
+            reasons.append(f"Il Growth risente di utili in contrazione ({earn_growth*100:.1f}%).")
+    elif weak_key == "momentum":
+        if mom12 is not None:
+            reasons.append(f"Il Momentum è debole: performance a 12 mesi {mom12*100:+.1f}%.")
+    elif weak_key == "risk":
+        if vol is not None and vol > 0.40:
+            reasons.append(f"Il Risk è penalizzato da volatilità elevata ({vol*100:.1f}% annua).")
+        elif drawdown is not None and abs(drawdown) > 0.35:
+            reasons.append(f"Il Risk risente di un drawdown storico ampio ({drawdown*100:.1f}%).")
+    elif weak_key == "trend":
+        if rsi is not None:
+            reasons.append(f"Il Trend è l'area più debole; RSI 14 a {rsi:.1f}.")
+
+    if not reasons:
+        reasons.append(f"Punti migliori: {best_label} e {second_label}. Area più debole: {weak_label}.")
+
+    return opening + " " + " ".join(reasons[:3])
 
 
 def rank_card(row: pd.Series) -> None:
@@ -529,6 +626,10 @@ with tab_detail:
         h3.metric("Posizione", f"#{int(row['rank'])} su {len(df)}")
 
         st.info("**Lettura rapida:** " + stock_comment(row))
+        st.caption(
+            "Il commento è generato in modo deterministico dai dati disponibili: non usa AI generativa "
+            "e non modifica lo score del titolo."
+        )
 
         st.markdown("#### Profilo fattoriale")
         factor_left, factor_right = st.columns([1.25, 1])
