@@ -52,6 +52,13 @@ public class StockResult {
     public boolean fundamentalsAvailable = false;
     public String forecastMethod = "";
 
+    public double valuationGap = Double.NaN;
+    public double technicalSignalScore = Double.NaN;
+    public String valuationStatus = "N/D";
+    public String technicalSignal = "N/D";
+    public String outlook6m = "N/D";
+    public String overallVerdict = "N/D";
+
     public String comment = "";
     public String error = "";
 }
