@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 
 from src.config import settings
@@ -11,7 +12,7 @@ from src.providers import fred
 
 st.set_page_config(
     page_title="Market Ranker",
-    page_icon="📈",
+    page_icon="MR",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -19,30 +20,182 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-      .block-container { max-width: 1180px; padding-top: 1.2rem; padding-bottom: 3rem; }
-      h1 { letter-spacing: -0.03em; }
-      [data-testid="stMetric"] { border: 1px solid rgba(128,128,128,.22); border-radius: 14px; padding: .75rem .85rem; }
-      .rank-card { border: 1px solid rgba(128,128,128,.22); border-radius: 16px; padding: 14px 16px; margin-bottom: 10px; }
-      .rank-card .ticker { font-size: 1.05rem; font-weight: 700; }
-      .rank-card .name { opacity: .72; font-size: .88rem; }
-      .rank-card .score { font-size: 1.45rem; font-weight: 750; margin-top: .25rem; }
-      .rank-card .meta { opacity: .72; font-size: .82rem; }
-      .small-note { opacity: .72; font-size: .82rem; }
-      div[data-testid="stButton"] > button { min-height: 44px; border-radius: 12px; }
+      :root {
+        --mr-border: rgba(128,128,128,.20);
+        --mr-muted: rgba(128,128,128,.92);
+        --mr-soft: rgba(128,128,128,.08);
+        --mr-positive: #16a34a;
+        --mr-warning: #d97706;
+        --mr-negative: #dc2626;
+      }
+
+      #MainMenu, footer { visibility: hidden; }
+      .block-container {
+        max-width: 1160px;
+        padding-top: 1.3rem;
+        padding-bottom: 3rem;
+      }
+
+      h1, h2, h3 { letter-spacing: -0.025em; }
+      h1 { margin-bottom: .15rem; }
+
+      .mr-header {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: .45rem;
+      }
+      .mr-kicker {
+        font-size: .75rem;
+        letter-spacing: .11em;
+        text-transform: uppercase;
+        font-weight: 700;
+        opacity: .62;
+        margin-bottom: .25rem;
+      }
+      .mr-title {
+        font-size: 2rem;
+        line-height: 1.05;
+        font-weight: 760;
+        letter-spacing: -.04em;
+      }
+      .mr-subtitle {
+        margin-top: .35rem;
+        font-size: .92rem;
+        opacity: .68;
+      }
+      .mr-status {
+        border: 1px solid var(--mr-border);
+        border-radius: 999px;
+        padding: .38rem .72rem;
+        font-size: .78rem;
+        white-space: nowrap;
+        opacity: .82;
+      }
+
+      .mr-card {
+        border: 1px solid var(--mr-border);
+        border-radius: 16px;
+        padding: 1rem 1.05rem;
+        background: var(--mr-soft);
+      }
+      .mr-card-title {
+        font-size: .75rem;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        opacity: .58;
+        font-weight: 700;
+      }
+      .mr-card-value {
+        font-size: 1.7rem;
+        line-height: 1.1;
+        font-weight: 760;
+        margin-top: .28rem;
+      }
+      .mr-card-meta {
+        margin-top: .35rem;
+        font-size: .82rem;
+        opacity: .65;
+      }
+
+      .rank-card {
+        border: 1px solid var(--mr-border);
+        border-radius: 16px;
+        padding: .95rem 1rem;
+        margin-bottom: .65rem;
+        background: rgba(128,128,128,.035);
+      }
+      .rank-topline {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: .75rem;
+      }
+      .rank-symbol {
+        font-size: 1.02rem;
+        font-weight: 760;
+      }
+      .rank-score {
+        font-size: 1.22rem;
+        font-weight: 760;
+      }
+      .rank-name {
+        font-size: .86rem;
+        opacity: .66;
+        margin-top: .08rem;
+      }
+      .rank-meta {
+        display: flex;
+        justify-content: space-between;
+        gap: .75rem;
+        margin-top: .55rem;
+        font-size: .79rem;
+        opacity: .64;
+      }
+
+      .score-good { color: var(--mr-positive); }
+      .score-mid { color: var(--mr-warning); }
+      .score-low { color: var(--mr-negative); }
+
+      [data-testid="stMetric"] {
+        border: 1px solid var(--mr-border);
+        border-radius: 14px;
+        padding: .78rem .85rem;
+        background: rgba(128,128,128,.035);
+      }
+      [data-testid="stMetricLabel"] { opacity: .66; }
+
+      div[data-testid="stButton"] > button {
+        min-height: 46px;
+        border-radius: 12px;
+        font-weight: 650;
+      }
+
       textarea { font-size: 16px !important; }
+      .stTabs [data-baseweb="tab-list"] {
+        gap: .2rem;
+        border-bottom: 1px solid var(--mr-border);
+      }
+      .stTabs [data-baseweb="tab"] {
+        padding-left: .75rem;
+        padding-right: .75rem;
+      }
+
+      .small-note {
+        opacity: .62;
+        font-size: .79rem;
+        line-height: 1.45;
+      }
 
       @media (max-width: 760px) {
-        .block-container { padding-left: .8rem; padding-right: .8rem; padding-top: .7rem; }
-        h1 { font-size: 1.9rem !important; }
-        h2 { font-size: 1.35rem !important; }
-        h3 { font-size: 1.15rem !important; }
-        [data-testid="stHorizontalBlock"] { flex-wrap: wrap; gap: .55rem; }
-        [data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
-          flex: 1 1 46% !important; min-width: 145px !important; width: auto !important;
+        .block-container {
+          padding-left: .75rem;
+          padding-right: .75rem;
+          padding-top: .75rem;
         }
-        [data-testid="stMetric"] { padding: .65rem .7rem; }
-        [data-testid="stDataFrame"] { font-size: .82rem; }
-        .stTabs [data-baseweb="tab-list"] { overflow-x: auto; white-space: nowrap; }
+        .mr-header {
+          display: block;
+        }
+        .mr-title { font-size: 1.75rem; }
+        .mr-status {
+          display: inline-block;
+          margin-top: .65rem;
+        }
+        .rank-card { padding: .85rem .9rem; }
+        .stTabs [data-baseweb="tab-list"] {
+          overflow-x: auto;
+          white-space: nowrap;
+        }
+        [data-testid="stHorizontalBlock"] {
+          flex-wrap: wrap;
+          gap: .5rem;
+        }
+        [data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
+          flex: 1 1 46% !important;
+          min-width: 145px !important;
+          width: auto !important;
+        }
       }
     </style>
     """,
@@ -51,7 +204,18 @@ st.markdown(
 
 
 def score_text(value) -> str:
-    return "N/D" if value is None or pd.isna(value) else f"{float(value):.1f}/100"
+    return "N/D" if value is None or pd.isna(value) else f"{float(value):.0f}"
+
+
+def score_class(value) -> str:
+    if value is None or pd.isna(value):
+        return ""
+    value = float(value)
+    if value >= 70:
+        return "score-good"
+    if value >= 50:
+        return "score-mid"
+    return "score-low"
 
 
 def pct_text(value) -> str:
@@ -62,21 +226,55 @@ def num_text(value, decimals: int = 2) -> str:
     return "N/D" if value is None or pd.isna(value) else f"{float(value):.{decimals}f}"
 
 
+def price_text(row: pd.Series) -> str:
+    if row.get("price") is None or pd.isna(row.get("price")):
+        return "N/D"
+    return f"{float(row.get('price')):.2f} {row.get('currency') or ''}".strip()
+
+
 def rank_card(row: pd.Series) -> None:
-    price = "N/D" if pd.isna(row.get("price")) else f"{row.get('price'):.2f}"
-    currency = row.get("currency") or ""
-    sector = row.get("sector") or "Settore N/D"
+    sector = row.get("sector") or "Settore non disponibile"
     st.markdown(
         f"""
         <div class="rank-card">
-          <div class="ticker">#{int(row['rank'])} · {row['symbol']}</div>
-          <div class="name">{row.get('name') or row['symbol']}</div>
-          <div class="score">{score_text(row.get('composite'))}</div>
-          <div class="meta">{price} {currency} · {sector}</div>
+          <div class="rank-topline">
+            <div class="rank-symbol">#{int(row['rank'])}&nbsp;&nbsp;{row['symbol']}</div>
+            <div class="rank-score {score_class(row.get('composite'))}">{score_text(row.get('composite'))}/100</div>
+          </div>
+          <div class="rank-name">{row.get('name') or row['symbol']}</div>
+          <div class="rank-meta">
+            <span>{price_text(row)}</span>
+            <span>{sector}</span>
+          </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
+
+
+def factor_chart(row: pd.Series) -> go.Figure:
+    labels = ["Quality", "Value", "Momentum", "Growth", "Trend", "Risk"]
+    keys = ["quality", "valuation", "momentum", "growth", "trend", "risk"]
+    values = [row.get(k) if not pd.isna(row.get(k)) else None for k in keys]
+
+    fig = go.Figure(
+        go.Bar(
+            x=values,
+            y=labels,
+            orientation="h",
+            text=[f"{v:.0f}" if v is not None else "N/D" for v in values],
+            textposition="outside",
+            hovertemplate="%{y}: %{x:.1f}/100<extra></extra>",
+        )
+    )
+    fig.update_layout(
+        height=300,
+        margin=dict(l=8, r=35, t=8, b=8),
+        xaxis=dict(range=[0, 105], title="", showgrid=True),
+        yaxis=dict(title="", autorange="reversed"),
+        showlegend=False,
+    )
+    return fig
 
 
 if "ranking_df" not in st.session_state:
@@ -84,134 +282,250 @@ if "ranking_df" not in st.session_state:
 if "ranking_errors" not in st.session_state:
     st.session_state.ranking_errors = []
 
-st.title("Market Ranker")
-st.caption("Azioni ed ETF · scoring multifattoriale · fonti gratuite · nessun endpoint pay-per-use")
 
-with st.expander("⚙️ Configurazione dati", expanded=False):
-    c1, c2 = st.columns(2)
-    with c1:
-        prefer_twelve = st.toggle(
-            "Usa Twelve Data per i prezzi",
-            value=False,
-            disabled=not bool(settings.twelve_data_api_key),
-            help="Se disattivo o non configurato, usa Yahoo/yfinance.",
-        )
-    with c2:
-        st.write("**FREE_ONLY:**", "attivo" if settings.free_only else "disattivo")
-    st.caption(
-        "Twelve Data: " + ("configurata" if settings.twelve_data_api_key else "non configurata")
-        + " · FRED: " + ("configurata" if settings.fred_api_key else "non configurata")
-        + f" · tetto Twelve Data/run: {settings.max_twelve_symbols_per_run}"
-    )
-
-DEFAULT = "AAPL, MSFT, GOOGL, META, AMZN, NVDA, TTWO, ASML, SAP.DE, RHM.DE, BMPS.MI"
-tickers = st.text_area(
-    "Ticker da analizzare",
-    value=DEFAULT,
-    height=95,
-    help="Separali con virgole o vai a capo. Per alcuni mercati servono suffissi Yahoo, es. BMPS.MI, SAP.DE, ASML.AS.",
-)
-
-run = st.button("Calcola ranking", type="primary", use_container_width=True)
 st.markdown(
-    '<div class="small-note">Il modello è uno strumento di ricerca trasparente e non una raccomandazione d’investimento. I pesi vanno validati con backtest.</div>',
+    f"""
+    <div class="mr-header">
+      <div>
+        <div class="mr-kicker">Equity Research</div>
+        <div class="mr-title">Market Ranker</div>
+        <div class="mr-subtitle">Screening multifattoriale di azioni ed ETF, con metodologia trasparente.</div>
+      </div>
+      <div class="mr-status">Free-only mode: {"ON" if settings.free_only else "OFF"}</div>
+    </div>
+    """,
     unsafe_allow_html=True,
 )
 
+with st.expander("Dati e configurazione", expanded=False):
+    c1, c2 = st.columns(2)
+    with c1:
+        prefer_twelve = st.toggle(
+            "Preferisci Twelve Data per i prezzi",
+            value=False,
+            disabled=not bool(settings.twelve_data_api_key),
+            help="Se non configurato, il motore usa Yahoo/yfinance.",
+        )
+    with c2:
+        st.markdown(
+            f"""
+            **Provider**
+            
+            Twelve Data: {"attivo" if settings.twelve_data_api_key else "non configurato"}  
+            FRED: {"attivo" if settings.fred_api_key else "non configurato"}  
+            Limite Twelve Data/run: {settings.max_twelve_symbols_per_run}
+            """
+        )
+
+DEFAULT = "AAPL, MSFT, GOOGL, META, AMZN, NVDA, TTWO, ASML, SAP.DE, RHM.DE, BMPS.MI"
+
+input_col, action_col = st.columns([4, 1])
+with input_col:
+    tickers = st.text_area(
+        "Universo da analizzare",
+        value=DEFAULT,
+        height=88,
+        help="Separa i ticker con virgole o vai a capo. Esempi: BMPS.MI, SAP.DE, ASML.AS.",
+    )
+with action_col:
+    st.write("")
+    st.write("")
+    run = st.button("Aggiorna ranking", type="primary", use_container_width=True)
+
 if run:
     symbols = [x.strip() for x in tickers.replace("\n", ",").split(",") if x.strip()]
-    with st.spinner("Recupero dati e calcolo fattori..."):
-        df, errors = rank_symbols(symbols, prefer_twelve=prefer_twelve)
-    st.session_state.ranking_df = df
-    st.session_state.ranking_errors = errors
+    with st.spinner("Recupero dati e calcolo score..."):
+        df_new, errors_new = rank_symbols(symbols, prefer_twelve=prefer_twelve)
+    st.session_state.ranking_df = df_new
+    st.session_state.ranking_errors = errors_new
 
 df = st.session_state.ranking_df
 errors = st.session_state.ranking_errors
 
-tab_rank, tab_detail, tab_macro = st.tabs(["🏆 Ranking", "🔎 Dettaglio", "🌍 Macro"])
+if not df.empty:
+    analyzed = len(df)
+    avg_score = df["composite"].dropna().mean() if "composite" in df.columns else None
+    leader = df.iloc[0]
+
+    s1, s2, s3 = st.columns(3)
+    s1.metric("Titoli analizzati", f"{analyzed}")
+    s2.metric("Score medio", "N/D" if pd.isna(avg_score) else f"{avg_score:.0f}/100")
+    s3.metric("Leader", f"{leader['symbol']} · {score_text(leader.get('composite'))}/100")
+
+st.write("")
+tab_rank, tab_detail, tab_macro = st.tabs(["Ranking", "Dettaglio titolo", "Macro"])
 
 with tab_rank:
     if df.empty:
-        st.info("Inserisci i ticker e premi **Calcola ranking**.")
+        st.info("Inserisci i ticker e premi **Aggiorna ranking**.")
     else:
         top = df.iloc[0]
-        st.subheader(f"Leader: {top['symbol']}")
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Composite", score_text(top.get("composite")))
-        m2.metric("Quality", score_text(top.get("quality")))
-        m3.metric("Momentum", score_text(top.get("momentum")))
-        m4.metric("Valuation", score_text(top.get("valuation")))
 
-        st.markdown("#### Classifica rapida")
-        for _, row in df.head(10).iterrows():
-            rank_card(row)
+        st.markdown("### Classifica")
+        left, right = st.columns([1.05, 1.35])
+
+        with left:
+            for _, row in df.head(10).iterrows():
+                rank_card(row)
+
+        with right:
+            chart_df = df.dropna(subset=["composite"]).copy().head(15)
+            if not chart_df.empty:
+                fig = px.bar(
+                    chart_df.sort_values("composite"),
+                    x="composite",
+                    y="symbol",
+                    orientation="h",
+                    hover_data=["name"],
+                )
+                fig.update_traces(
+                    hovertemplate="<b>%{y}</b><br>Score: %{x:.1f}/100<extra></extra>"
+                )
+                fig.update_layout(
+                    xaxis=dict(title="Composite score", range=[0, 100]),
+                    yaxis_title="",
+                    height=max(390, len(chart_df) * 34),
+                    margin=dict(l=5, r=10, t=8, b=35),
+                    showlegend=False,
+                )
+                st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+
+            st.markdown("#### Leader")
+            l1, l2, l3 = st.columns(3)
+            l1.metric("Composite", f"{score_text(top.get('composite'))}/100")
+            l2.metric("Quality", f"{score_text(top.get('quality'))}/100")
+            l3.metric("Momentum", f"{score_text(top.get('momentum'))}/100")
+            l1.metric("Valuation", f"{score_text(top.get('valuation'))}/100")
+            l2.metric("Growth", f"{score_text(top.get('growth'))}/100")
+            l3.metric("Risk", f"{score_text(top.get('risk'))}/100")
 
         with st.expander("Tabella completa", expanded=False):
-            score_cols = ["composite", "valuation", "quality", "growth", "momentum", "trend", "risk"]
-            display_cols = ["rank", "symbol", "name", "price", *score_cols, "pe", "ev_ebitda", "fcf_yield", "price_source"]
+            display_cols = [
+                "rank", "symbol", "name", "price", "composite", "quality",
+                "valuation", "momentum", "growth", "trend", "risk",
+                "pe", "ev_ebitda", "fcf_yield", "price_source",
+            ]
             display_cols = [c for c in display_cols if c in df.columns]
-            st.dataframe(df[display_cols], use_container_width=True, hide_index=True)
-
-        chart_df = df.dropna(subset=["composite"]).copy().head(15)
-        if not chart_df.empty:
-            fig = px.bar(chart_df.sort_values("composite"), x="composite", y="symbol", orientation="h", hover_data=["name"])
-            fig.update_layout(
-                xaxis_title="Composite score (0–100)", yaxis_title="",
-                height=max(360, len(chart_df) * 34), margin=dict(l=10, r=10, t=20, b=20),
+            st.dataframe(
+                df[display_cols],
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "rank": "Rank",
+                    "symbol": "Ticker",
+                    "name": "Società",
+                    "price": st.column_config.NumberColumn("Prezzo", format="%.2f"),
+                    "composite": st.column_config.ProgressColumn("Score", min_value=0, max_value=100, format="%.0f"),
+                    "quality": st.column_config.NumberColumn("Quality", format="%.0f"),
+                    "valuation": st.column_config.NumberColumn("Value", format="%.0f"),
+                    "momentum": st.column_config.NumberColumn("Momentum", format="%.0f"),
+                    "growth": st.column_config.NumberColumn("Growth", format="%.0f"),
+                    "trend": st.column_config.NumberColumn("Trend", format="%.0f"),
+                    "risk": st.column_config.NumberColumn("Risk", format="%.0f"),
+                    "fcf_yield": st.column_config.NumberColumn("FCF Yield", format="%.2%")
+                },
             )
-            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
     if errors:
-        with st.expander(f"Ticker non elaborati / errori ({len(errors)})"):
+        with st.expander(f"Ticker non elaborati ({len(errors)})"):
             for err in errors:
-                st.write("•", err)
+                st.write(err)
 
 with tab_detail:
     if df.empty:
         st.info("Calcola prima un ranking.")
     else:
         symbols_available = df["symbol"].tolist()
-        chosen = st.selectbox("Titolo", symbols_available, index=0)
+        chosen = st.selectbox(
+            "Seleziona titolo",
+            symbols_available,
+            index=0,
+            label_visibility="collapsed",
+        )
         row = df.loc[df["symbol"] == chosen].iloc[0]
 
-        st.subheader(f"{row['symbol']} · {row.get('name') or row['symbol']}")
-        st.caption(" · ".join([x for x in [row.get("sector"), row.get("industry"), row.get("price_source")] if x]))
+        st.markdown(f"### {row['symbol']} · {row.get('name') or row['symbol']}")
+        meta = " · ".join(
+            [x for x in [row.get("sector"), row.get("industry"), row.get("price_source")] if x]
+        )
+        if meta:
+            st.caption(meta)
 
-        p1, p2 = st.columns(2)
-        p1.metric("Prezzo", "N/D" if pd.isna(row.get("price")) else f"{row.get('price'):.2f} {row.get('currency') or ''}")
-        p2.metric("Composite", score_text(row.get("composite")))
+        h1, h2, h3 = st.columns(3)
+        h1.metric("Prezzo", price_text(row))
+        h2.metric("Composite", f"{score_text(row.get('composite'))}/100")
+        h3.metric("Posizione", f"#{int(row['rank'])} su {len(df)}")
 
-        st.markdown("#### Fattori")
-        a, b = st.columns(2)
-        a.metric("Quality", score_text(row.get("quality"))); b.metric("Valuation", score_text(row.get("valuation")))
-        a.metric("Momentum", score_text(row.get("momentum"))); b.metric("Growth", score_text(row.get("growth")))
-        a.metric("Trend", score_text(row.get("trend"))); b.metric("Risk", score_text(row.get("risk")))
+        st.markdown("#### Profilo fattoriale")
+        factor_left, factor_right = st.columns([1.25, 1])
+
+        with factor_left:
+            st.plotly_chart(
+                factor_chart(row),
+                use_container_width=True,
+                config={"displayModeBar": False},
+            )
+
+        with factor_right:
+            q1, q2 = st.columns(2)
+            q1.metric("Quality", f"{score_text(row.get('quality'))}/100")
+            q2.metric("Value", f"{score_text(row.get('valuation'))}/100")
+            q1.metric("Momentum", f"{score_text(row.get('momentum'))}/100")
+            q2.metric("Growth", f"{score_text(row.get('growth'))}/100")
+            q1.metric("Trend", f"{score_text(row.get('trend'))}/100")
+            q2.metric("Risk", f"{score_text(row.get('risk'))}/100")
 
         st.markdown("#### Fondamentali")
-        f1, f2 = st.columns(2)
-        f1.metric("P/E", num_text(row.get("pe"))); f2.metric("EV/EBITDA", num_text(row.get("ev_ebitda")))
-        f1.metric("FCF Yield", pct_text(row.get("fcf_yield"))); f2.metric("ROE", pct_text(row.get("roe")))
-        f1.metric("Margine netto", pct_text(row.get("profit_margin"))); f2.metric("Debt / Equity", num_text(row.get("debt_to_equity")))
+        f1, f2, f3 = st.columns(3)
+        f1.metric("P/E", num_text(row.get("pe")))
+        f2.metric("EV / EBITDA", num_text(row.get("ev_ebitda")))
+        f3.metric("FCF Yield", pct_text(row.get("fcf_yield")))
+        f1.metric("ROE", pct_text(row.get("roe")))
+        f2.metric("Margine netto", pct_text(row.get("profit_margin")))
+        f3.metric("Debt / Equity", num_text(row.get("debt_to_equity")))
 
-        st.markdown("#### Tecnica e rischio")
-        t1, t2 = st.columns(2)
-        t1.metric("Momentum 3M", pct_text(row.get("momentum_3m"))); t2.metric("Momentum 12M", pct_text(row.get("momentum_12m")))
-        t1.metric("Volatilità ann.", pct_text(row.get("volatility_annual"))); t2.metric("Max drawdown", pct_text(row.get("max_drawdown")))
-        t1.metric("RSI 14", num_text(row.get("rsi14"), 1)); t2.metric("ATR 14 %", pct_text(row.get("atr14_pct")))
+        st.markdown("#### Momentum e rischio")
+        t1, t2, t3 = st.columns(3)
+        t1.metric("Momentum 3M", pct_text(row.get("momentum_3m")))
+        t2.metric("Momentum 12M", pct_text(row.get("momentum_12m")))
+        t3.metric("RSI 14", num_text(row.get("rsi14"), 1))
+        t1.metric("Volatilità ann.", pct_text(row.get("volatility_annual")))
+        t2.metric("Max drawdown", pct_text(row.get("max_drawdown")))
+        t3.metric("ATR 14", pct_text(row.get("atr14_pct")))
 
 with tab_macro:
-    st.subheader("Snapshot macro USA")
+    st.markdown("### Quadro macro USA")
+    st.caption("Modulo opzionale basato su FRED.")
+
     if settings.fred_api_key:
-        if st.button("Aggiorna FRED", use_container_width=True):
-            with st.spinner("Aggiornamento dati macro..."):
+        if st.button("Aggiorna dati macro", use_container_width=True):
+            with st.spinner("Aggiornamento FRED..."):
                 st.session_state["macro_snapshot"] = fred.macro_snapshot()
+
         macro = st.session_state.get("macro_snapshot")
         if macro:
-            st.json(macro)
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Fed Funds", num_text(macro.get("fed_funds"), 2) + "%")
+            m2.metric("Treasury 10Y", num_text(macro.get("treasury_10y"), 2) + "%")
+            m3.metric("Treasury 2Y", num_text(macro.get("treasury_2y"), 2) + "%")
+            m1.metric("Disoccupazione", num_text(macro.get("unemployment"), 1) + "%")
+            m2.metric("CPI Index", num_text(macro.get("cpi"), 1))
+            m3.metric("10Y - 2Y", num_text(macro.get("yield_curve_10y_2y"), 2) + " pp")
         else:
-            st.info("Premi **Aggiorna FRED** per caricare lo snapshot.")
+            st.info("Premi **Aggiorna dati macro** per caricare lo snapshot.")
     else:
-        st.info("FRED è opzionale. Aggiungi `FRED_API_KEY` nei Secrets di Streamlit Cloud per Fed Funds, Treasury 2Y/10Y, CPI e disoccupazione.")
+        st.info(
+            "FRED non è configurato. Il ranking azionario continua a funzionare normalmente; "
+            "la chiave serve solo per questo modulo macro."
+        )
 
 st.divider()
-st.caption("Dati soggetti ai termini dei provider. Nessuna credenziale è inclusa nel progetto e il codice non effettua upgrade o pagamenti automatici.")
+st.markdown(
+    """
+    <div class="small-note">
+      Il Market Ranker è uno strumento di ricerca quantitativa, non una raccomandazione d'investimento.
+      I pesi del modello sono trasparenti ma non ancora validati tramite backtest. Dati soggetti ai termini dei provider.
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
