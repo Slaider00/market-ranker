@@ -34,6 +34,24 @@ public class StockResult {
     public double macd = Double.NaN;
     public double macdSignal = Double.NaN;
 
+    public double bearTarget = Double.NaN;
+    public double baseTarget = Double.NaN;
+    public double bullTarget = Double.NaN;
+    public double expectedPrice6m = Double.NaN;
+    public double expectedReturn6m = Double.NaN;
+    public double downsideBear = Double.NaN;
+    public double upsideBull = Double.NaN;
+    public double riskReward = Double.NaN;
+    public double confidence = Double.NaN;
+    public double opportunity = Double.NaN;
+    public double bearProbability = Double.NaN;
+    public double baseProbability = Double.NaN;
+    public double bullProbability = Double.NaN;
+    public double fundamentalTarget = Double.NaN;
+    public double statisticalTarget = Double.NaN;
+    public boolean fundamentalsAvailable = false;
+    public String forecastMethod = "";
+
     public String comment = "";
     public String error = "";
 }
