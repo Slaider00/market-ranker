@@ -264,6 +264,40 @@ def _v(row: pd.Series, key: str):
     return None if value is None or pd.isna(value) else float(value)
 
 
+def valuation_status(row: pd.Series) -> str:
+    value = _v(row, "valuation")
+    if value is None:
+        return "N/D"
+    if value >= 65:
+        return "UNDERVALUED"
+    if value <= 35:
+        return "OVERVALUED"
+    return "FAIR VALUE"
+
+
+def technical_status(row: pd.Series) -> str:
+    vals = [v for v in [_v(row, "momentum"), _v(row, "trend")] if v is not None]
+    if not vals:
+        return "N/D"
+    score = sum(vals) / len(vals)
+    if score >= 67:
+        return "BULLISH"
+    if score <= 33:
+        return "BEARISH"
+    return "NEUTRAL"
+
+
+def profile_status(row: pd.Series) -> str:
+    value = _v(row, "composite")
+    if value is None:
+        return "N/D"
+    if value >= 70:
+        return "POSITIVE"
+    if value < 45:
+        return "CAUTION"
+    return "MIXED"
+
+
 def stock_comment(row: pd.Series) -> str:
     available = []
     for key, label in FACTOR_LABELS.items():
@@ -397,7 +431,10 @@ def rank_card(row: pd.Series) -> None:
             <span>{price_text(row)}</span>
             <span>{sector}</span>
           </div>
-          <div class="rank-comment">{stock_comment(row)}</div>
+          <div class="rank-comment">
+            <strong>{valuation_status(row)}</strong> · {technical_status(row)} · {profile_status(row)}<br>
+            {stock_comment(row)}
+          </div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -469,15 +506,14 @@ with st.expander("Dati e configurazione", expanded=False):
             """
         )
 
-DEFAULT = "AAPL, MSFT, GOOGL, META, AMZN, NVDA, TTWO, ASML, SAP.DE, RHM.DE, BMPS.MI"
-
 input_col, action_col = st.columns([4, 1])
 with input_col:
     tickers = st.text_area(
-        "Universo da analizzare",
-        value=DEFAULT,
+        "Inserisci i titoli",
+        value="",
+        placeholder="Es. AAPL, META, TTWO, BMPS.MI",
         height=88,
-        help="Separa i ticker con virgole o vai a capo. Esempi: BMPS.MI, SAP.DE, ASML.AS.",
+        help="Inserisci uno o più ticker, separati da virgole o su righe diverse.",
     )
 with action_col:
     st.write("")
@@ -624,6 +660,11 @@ with tab_detail:
         h1.metric("Prezzo", price_text(row))
         h2.metric("Composite", f"{score_text(row.get('composite'))}/100")
         h3.metric("Posizione", f"#{int(row['rank'])} su {len(df)}")
+
+        v1, v2, v3 = st.columns(3)
+        v1.metric("Valutazione", valuation_status(row))
+        v2.metric("Segnale tecnico", technical_status(row))
+        v3.metric("Profilo", profile_status(row))
 
         st.info("**Lettura rapida:** " + stock_comment(row))
         st.caption(
