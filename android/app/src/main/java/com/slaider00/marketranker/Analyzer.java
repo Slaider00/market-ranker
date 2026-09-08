@@ -52,7 +52,7 @@ public class Analyzer {
                 Maths.lower(r.atr14Pct, 0.015, 0.06)));
 
         try {
-            MarketDataClient.Fundamentals f = client.secFundamentals(r.symbol);
+            MarketDataClient.Fundamentals f = client.fundamentals(r.symbol);
             if (Maths.ok(f.revenue) && f.revenue != 0 && Maths.ok(f.netIncome))
                 r.profitMargin = f.netIncome / f.revenue;
             if (Maths.ok(f.equity) && f.equity != 0 && Maths.ok(f.netIncome))
@@ -64,12 +64,19 @@ public class Analyzer {
             if (Maths.ok(f.netIncome) && Maths.ok(f.prevNetIncome) && f.prevNetIncome != 0)
                 r.earningsGrowth = f.netIncome / f.prevNetIncome - 1.0;
 
-            double marketCap = (Maths.ok(f.shares) && f.shares > 0) ? f.shares * r.price : Double.NaN;
-            double fcf = (Maths.ok(f.operatingCashFlow) && Maths.ok(f.capex))
-                    ? f.operatingCashFlow - Math.abs(f.capex) : Double.NaN;
+            double marketCap = Maths.ok(f.marketCap) && f.marketCap > 0
+                    ? f.marketCap
+                    : ((Maths.ok(f.shares) && f.shares > 0) ? f.shares * r.price : Double.NaN);
+            double fcf = Maths.ok(f.freeCashFlow)
+                    ? f.freeCashFlow
+                    : ((Maths.ok(f.operatingCashFlow) && Maths.ok(f.capex))
+                        ? f.operatingCashFlow - Math.abs(f.capex) : Double.NaN);
             if (Maths.ok(marketCap) && marketCap > 0 && Maths.ok(fcf)) r.fcfYield = fcf / marketCap;
-            if (Maths.ok(marketCap) && marketCap > 0 && Maths.ok(f.netIncome) && f.netIncome > 0)
+            if (Maths.ok(f.pe) && f.pe > 0) {
+                r.pe = f.pe;
+            } else if (Maths.ok(marketCap) && marketCap > 0 && Maths.ok(f.netIncome) && f.netIncome > 0) {
                 r.pe = marketCap / f.netIncome;
+            }
 
             double cashConversion = (Maths.ok(f.operatingCashFlow) && Maths.ok(f.netIncome) && f.netIncome > 0)
                     ? f.operatingCashFlow / f.netIncome : Double.NaN;
