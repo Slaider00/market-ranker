@@ -75,6 +75,7 @@ public class MainActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(BG);
+        root.setFitsSystemWindows(true);
 
         root.addView(buildTopBar());
 
@@ -97,7 +98,7 @@ public class MainActivity extends Activity {
         LinearLayout bar = new LinearLayout(this);
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setGravity(Gravity.CENTER_VERTICAL);
-        bar.setPadding(dp(12), dp(10), dp(14), dp(10));
+        bar.setPadding(dp(12), dp(10) + statusBarInset(), dp(14), dp(10));
         bar.setBackgroundColor(SURFACE);
 
         topBack = text("‹", 36, TEXT, false);
@@ -493,8 +494,8 @@ public class MainActivity extends Activity {
             LinearLayout warn = card(Color.rgb(52, 42, 18));
             warn.addView(text("Fondamentali incompleti", 14, ORANGE, true));
             warn.addView(text(
-                    "Per questo ticker il motore non ha ottenuto un set fondamentale completo SEC. " +
-                    "Il forecast 6M è quindi prevalentemente statistico-tecnico.",
+                    "Per questo ticker non sono disponibili fondamentali sufficienti né da SEC né dal fallback Yahoo. " +
+                    "Il forecast 6M usa quindi soprattutto dati statistico-tecnici.",
                     12, MUTED, false));
             content.addView(warn, cardParams());
         }
@@ -811,6 +812,11 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams p = matchWrap();
         p.topMargin = dp(10);
         return p;
+    }
+
+    private int statusBarInset() {
+        int resourceId = getResources().getIdentifier("status_bar_height", "dimen", "android");
+        return resourceId > 0 ? getResources().getDimensionPixelSize(resourceId) : dp(24);
     }
 
     private int dp(int value) {
