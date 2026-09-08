@@ -8,7 +8,8 @@
         android:roundIcon="@drawable/ic_launcher_foreground"
         android:supportsRtl="true"
         android:theme="@style/Theme.MarketRanker"
-        android:usesCleartextTraffic="false"\n        android:enableOnBackInvokedCallback="false">
+        android:usesCleartextTraffic="false"
+        android:enableOnBackInvokedCallback="false">
 
         <activity
             android:name=".MainActivity"
